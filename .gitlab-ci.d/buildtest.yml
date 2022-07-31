@@ -24,7 +24,7 @@ check-system-alpine:
       artifacts: true
   variables:
     IMAGE: alpine
-    MAKE_CHECK_ARGS: check-unit check-qtest
+    MAKE_CHECK_ARGS: check-unit check-qtest check-module
 
 avocado-system-alpine:
   extends: .avocado_test_job_template
@@ -248,6 +248,7 @@ build-tcg-disabled:
       || { cat config.log meson-logs/meson-log.txt && exit 1; }
     - make -j"$JOBS"
     - make check-unit
+    - make check-module
     - make check-qapi-schema
     - cd tests/qemu-iotests/
     - ./check -raw 001 002 003 004 005 008 009 010 011 012 021 025 032 033 048
@@ -333,7 +334,7 @@ clang-user:
     CONFIGURE_ARGS: --cc=clang --cxx=clang++ --disable-system
       --target-list-exclude=microblazeel-linux-user,aarch64_be-linux-user,i386-linux-user,m68k-linux-user,mipsn32el-linux-user,xtensaeb-linux-user
       --extra-cflags=-fsanitize=undefined --extra-cflags=-fno-sanitize-recover=undefined
-    MAKE_CHECK_ARGS: check-unit check-tcg
+    MAKE_CHECK_ARGS: check-unit check-module check-tcg
 
 # Set LD_JOBS=1 because this requires LTO and ld consumes a large amount of memory.
 # On gitlab runners, default value sometimes end up calling 2 lds concurrently and
@@ -575,7 +576,7 @@ build-without-default-features:
       --disable-strip
     TARGETS: avr-softmmu i386-softmmu mips64-softmmu s390x-softmmu sh4-softmmu
       sparc64-softmmu hexagon-linux-user i386-linux-user s390x-linux-user
-    MAKE_CHECK_ARGS: check-unit check-qtest SPEED=slow
+    MAKE_CHECK_ARGS: check-unit check-module check-qtest SPEED=slow
 
 build-libvhost-user:
   extends: .base_job_template
@@ -599,7 +600,7 @@ build-tools-and-docs-debian:
     optional: true
   variables:
     IMAGE: debian-amd64
-    MAKE_CHECK_ARGS: check-unit ctags TAGS cscope
+    MAKE_CHECK_ARGS: check-unit check-module ctags TAGS cscope
     CONFIGURE_ARGS: --disable-system --disable-user --enable-docs --enable-tools
     QEMU_JOB_PUBLISH: 1
   artifacts:

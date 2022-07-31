@@ -1,0 +1,59 @@
+Raspberry RP2040 SoC (``rp2040``)
+=================================
+
+.. note::
+    This module is under development. It was disabled from the default configuration.
+
+The RP2040 SoC is a family of 32-bit ARM-based microcontrollers from Raspberry.
+
+It contains:
+    * Dual ARM Cortex-M0+
+    * 264kB internal SRAM
+    * 16 kB ROM memory for bootloader
+    * QSPI bus for external XIP flash memory
+    * DMA controller
+    * Interpolator
+    * Builtin integer divider
+    * 2 PLL, one for USB, second for core clocks
+    * 30 GPIO pin
+    * Peripherals:
+        * 2 UARTs
+        * 2 SPI
+        * 2 I2C
+        * 16 PWM channels
+        * USB 1.1 controller with host support
+        * 8 PIO state machine
+
+
+Supported devices
+-----------------
+* 1 ARM Cortex-M0+
+* GPIO (IO_BANK0) partially
+* QSPI IO (IO_QSPI) partially
+
+
+To be implemented
+-----------------
+* QSPI XIP
+* Sysinfo
+* Syscfg
+* Clocks
+* Subsystem Resets
+* Power-On State Machine
+* Crystal Oscillator (XOSC)
+* PLL
+* Bus Fabric
+* UART
+* SPI
+* I2C
+* ADC and Temperature Sensor
+* PWM
+* Timer
+* Watchdog
+* RTC
+* Ring Oscillator (ROSC)
+* Chip-Level Reset
+* TBMAN
+* USB
+* PIO
+* SIO
