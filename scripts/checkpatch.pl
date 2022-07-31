@@ -2589,7 +2589,8 @@ sub process {
 				}
 
 			} elsif ($ctx !~ /;/) {
-				if ($dstat ne '' &&
+				if ($dstat ne ',' &&
+					$dstat ne '' &&
 				    $dstat !~ /^(?:$Ident|-?$Constant)$/ &&
 				    $dstat !~ /$exceptions/ &&
 				    $dstat !~ /^\.$Ident\s*=/ &&

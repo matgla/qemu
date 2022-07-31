@@ -106,6 +106,8 @@ undocumented; you can get a complete list by running
    arm/stm32
    arm/virt
    arm/xlnx-versal-virt
+   arm/raspi_pico
+   arm/rp2040
 
 Emulated CPU architecture support
 =================================

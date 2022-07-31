@@ -10,6 +10,7 @@ check-help:
 	@echo " $(MAKE) check-qtest-TARGET     Run qtest tests for given target"
 	@echo " $(MAKE) check-qtest            Run qtest tests"
 	@echo " $(MAKE) check-unit             Run qobject tests"
+	@echo " $(MAKE) check-module           Run qobject module tests"
 	@echo " $(MAKE) check-qapi-schema      Run QAPI schema tests"
 	@echo " $(MAKE) check-block            Run block tests"
 ifneq ($(filter $(all-check-targets), check-softfloat),)

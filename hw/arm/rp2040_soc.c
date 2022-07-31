@@ -1,0 +1,261 @@
+/*
+ * RP2040 SoC
+ *
+ * Copyright (c) 2022 Mateusz Stadnik <matgla@live.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+#include "qemu/osdep.h"
+#include "hw/qdev-clock.h"
+#include "exec/address-spaces.h"
+#include "hw/misc/unimp.h"
+
+#include "hw/arm/rp2040_soc.h"
+
+#define RP2040_ROM_BASE_ADDRESS 0x00000000
+
+#define RP2040_XIP_BASE_ADDRESS 0x10000000
+#define RP2040_XIP_SIZE (16 * 1024 * 1024)
+
+#define RP2040_SRAM_BASE_ADDRESS 0x20000000
+#define RP2040_SRAM_SIZE (264 * 1024)
+
+#define RP2040_XIP_BASE                 0x10000000
+#define RP2040_XIP_NOALLOC_BASE         0x11000000
+#define RP2040_XIP_NOCACHE_BASE         0x12000000
+#define RP2040_XIP_NOCACHE_NOALLOC_BASE 0x13000000
+#define RP2040_XIP_CTRL_BASE            0x14000000
+#define RP2040_XIP_SRAM_BASE            0x15000000
+#define RP2040_XIP_SRAM_END             0x15004000
+#define RP2040_XIP_SSI_BASE             0x18000000
+#define RP2040_SRAM_BASE                0x20000000
+#define RP2040_SRAM_STRIPED_END         0x20040000
+#define RP2040_SRAM4_BASE               0x20040000
+#define RP2040_SRAM5_BASE               0x20041000
+#define RP2040_SRAM_END                 0x20042000
+#define RP2040_SRAM0_BASE               0x21000000
+#define RP2040_SRAM1_BASE               0x21010000
+#define RP2040_SRAM2_BASE               0x21020000
+#define RP2040_SRAM3_BASE               0x21030000
+#define RP2040_SYSINFO_BASE             0x40000000
+#define RP2040_SYSCFG_BASE              0x40004000
+#define RP2040_CLOCKS_BASE              0x40008000
+#define RP2040_RESETS_BASE              0x4000c000
+#define RP2040_PSM_BASE                 0x40010000
+#define RP2040_IO_BANK0_BASE            0x40014000
+#define RP2040_PADS_BANK0_BASE          0x4001c000
+#define RP2040_PADS_QSPI_BASE           0x40020000
+#define RP2040_XOSC_BASE                0x40024000
+#define RP2040_PLL_SYS_BASE             0x40028000
+#define RP2040_PLL_USB_BASE             0x4002c000
+#define RP2040_BUSCTRL_BASE             0x40030000
+#define RP2040_UART0_BASE               0x40034000
+#define RP2040_UART1_BASE               0x40038000
+#define RP2040_SPI0_BASE                0x4003c000
+#define RP2040_SPI1_BASE                0x40040000
+#define RP2040_I2C0_BASE                0x40044000
+#define RP2040_I2C1_BASE                0x40048000
+#define RP2040_ADC_BASE                 0x4004c000
+#define RP2040_PWM_BASE                 0x40050000
+#define RP2040_TIMER_BASE               0x40054000
+#define RP2040_WATCHDOG_BASE            0x40058000
+#define RP2040_RTC_BASE                 0x4005c000
+#define RP2040_ROSC_BASE                0x40060000
+#define RP2040_VREG_AND_CHIP_RESET_BASE 0x40064000
+#define RP2040_TBMAN_BASE               0x4006c000
+#define RP2040_DMA_BASE                 0x50000000
+#define RP2040_USBCTRL_BASE             0x50100000
+#define RP2040_USBCTRL_REGS_BASE        0x50110000
+#define RP2040_PIO0_BASE                0x50200000
+#define RP2040_PIO1_BASE                0x50300000
+#define RP2040_XIP_AUX_BASE             0x50400000
+#define RP2040_SIO_BASE                 0xd0000000
+
+
+static void rp2040_soc_init(Object *obj)
+{
+    RP2040State *s = RP2040_SOC(obj);
+    int i = 0;
+
+    /* cores initialization */
+    for (i = 0; i < RP2040_SOC_NUMBER_OF_CORES; ++i) {
+        object_initialize_child(obj, "armv6m[*]", &s->armv6m[i], TYPE_ARMV7M);
+        qdev_prop_set_string(DEVICE(&s->armv6m[i]), "cpu-type",
+            ARM_CPU_TYPE_NAME("cortex-m0"));
+    }
+
+    /* peripherals initialization */
+    object_initialize_child(obj, "gpio", &s->gpio, TYPE_RP2040_GPIO);
+
+    s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
+    s->refclk = qdev_init_clock_in(DEVICE(s), "refclk", NULL, NULL, 0);
+}
+
+static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
+{
+    RP2040State *s = RP2040_SOC(dev_soc);
+    DeviceState *core, *dev;
+    SysBusDevice *busdev;
+    int i;
+
+    MemoryRegion *system_memory = get_system_memory();
+
+
+    if (!clock_has_source(s->sysclk)) {
+        error_setg(errp, "sysclock not wired to RP2040 SOC");
+        return;
+    }
+
+   /* TODO: hacks to be removed, clocks should be setted up correctly */
+    clock_set_mul_div(s->refclk, 8, 1);
+    clock_set_source(s->refclk, s->sysclk);
+
+    /* Initialize boot rom */
+    memory_region_init_rom(&s->rom, OBJECT(dev_soc), "RP2040.rom",
+        RP2040_ROM_SIZE, &error_fatal);
+    memory_region_add_subregion(system_memory, RP2040_ROM_BASE_ADDRESS,
+        &s->rom);
+
+    memory_region_init_ram(&s->sram, NULL, "RP2040.sram",
+        RP2040_SRAM_SIZE, &error_fatal);
+
+    memory_region_add_subregion(system_memory, RP2040_SRAM_BASE_ADDRESS,
+        &s->sram);
+
+    /* Initialize cores */
+    for (i = 0; i < RP2040_SOC_NUMBER_OF_CORES; ++i) {
+        core = DEVICE(&s->armv6m[i]);
+        qdev_prop_set_uint32(core, "num-irq", 32);
+        qdev_prop_set_string(core, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m0"));
+        qdev_prop_set_bit(core, "enable-bitband", true);
+        qdev_connect_clock_in(core, "cpuclk", s->sysclk);
+        qdev_connect_clock_in(core, "refclk", s->refclk);
+        object_property_set_link(OBJECT(&s->armv6m[i]), "memory",
+                                OBJECT(get_system_memory()), &error_abort);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->armv6m[i]), errp)) {
+            return;
+        }
+    }
+    create_unimplemented_device("XIP", RP2040_XIP_BASE, 16 * 1024 * 1024);
+    create_unimplemented_device("XIP NOALLOC", RP2040_XIP_NOALLOC_BASE,
+        0x01000000);
+    create_unimplemented_device("XIP NOCACHE", RP2040_XIP_NOCACHE_BASE,
+        0x01000000);
+    create_unimplemented_device("XIP NOCACHE", RP2040_XIP_NOCACHE_NOALLOC_BASE,
+        0x01000000);
+    create_unimplemented_device("XIP CTRL", RP2040_XIP_CTRL_BASE, 0x01000000);
+    create_unimplemented_device("XIP SRAM", RP2040_XIP_SRAM_BASE, 0x4000);
+    create_unimplemented_device("XIP SRAM", RP2040_XIP_SSI_BASE, 0x4000);
+    create_unimplemented_device("XIP SRAM", RP2040_XIP_SSI_BASE, 0x4000);
+    create_unimplemented_device("SRAM0 BASE", RP2040_SRAM0_BASE, 0x10000);
+    create_unimplemented_device("SRAM1 BASE", RP2040_SRAM1_BASE, 0x10000);
+    create_unimplemented_device("SRAM2 BASE", RP2040_SRAM2_BASE, 0x10000);
+    create_unimplemented_device("SRAM3 BASE", RP2040_SRAM3_BASE, 0x10000);
+    create_unimplemented_device("SYSINFO", RP2040_SYSINFO_BASE, 0x4000);
+    create_unimplemented_device("SYSCFG", RP2040_SYSCFG_BASE, 0x4000);
+    create_unimplemented_device("CLOCKS", RP2040_CLOCKS_BASE, 0x4000);
+    create_unimplemented_device("RESETS", RP2040_RESETS_BASE, 0x4000);
+    create_unimplemented_device("PSM", RP2040_PSM_BASE, 0x4000);
+
+    dev = DEVICE(&s->gpio);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->gpio), errp)) {
+        return;
+    }
+    busdev = SYS_BUS_DEVICE(dev);
+    sysbus_mmio_map(busdev, 0, RP2040_IO_BANK0_BASE);
+
+    create_unimplemented_device("PADS BANK0",
+        RP2040_PADS_BANK0_BASE, 0x4000);
+    create_unimplemented_device("PADS QSPI",
+        RP2040_PADS_QSPI_BASE, 0x4000);
+    create_unimplemented_device("XOSC",
+        RP2040_XOSC_BASE, 0x4000);
+    create_unimplemented_device("PLL SYS",
+        RP2040_PLL_SYS_BASE, 0x4000);
+    create_unimplemented_device("PLL USB",
+        RP2040_PLL_USB_BASE, 0x4000);
+    create_unimplemented_device("BUSCTRL",
+        RP2040_BUSCTRL_BASE, 0x4000);
+    create_unimplemented_device("UART0",
+        RP2040_UART0_BASE, 0x4000);
+    create_unimplemented_device("UART1",
+        RP2040_UART1_BASE, 0x4000);
+    create_unimplemented_device("SPI0",
+        RP2040_SPI0_BASE, 0x4000);
+    create_unimplemented_device("SPI1",
+        RP2040_SPI1_BASE, 0x4000);
+    create_unimplemented_device("I2C0",
+        RP2040_I2C0_BASE, 0x4000);
+    create_unimplemented_device("I2C1",
+        RP2040_I2C1_BASE, 0x4000);
+    create_unimplemented_device("ADC",
+        RP2040_ADC_BASE, 0x4000);
+    create_unimplemented_device("PWM",
+        RP2040_PWM_BASE, 0x4000);
+    create_unimplemented_device("TIMER",
+        RP2040_TIMER_BASE, 0x4000);
+    create_unimplemented_device("WATCHDOG",
+        RP2040_WATCHDOG_BASE, 0x4000);
+    create_unimplemented_device("RTC",
+        RP2040_RTC_BASE, 0x4000);
+    create_unimplemented_device("ROSC",
+        RP2040_ROSC_BASE, 0x4000);
+    create_unimplemented_device("VREG AND CHIP RESET",
+        RP2040_VREG_AND_CHIP_RESET_BASE, 0x8000);
+    create_unimplemented_device("TBMAN",
+        RP2040_TBMAN_BASE, 0x4000);
+    create_unimplemented_device("DMA",
+        RP2040_DMA_BASE, 0x100000);
+    create_unimplemented_device("USB CTRL",
+        RP2040_USBCTRL_BASE, 0x100000);
+    create_unimplemented_device("USB CTRL REGS",
+        RP2040_USBCTRL_REGS_BASE, 0x100000);
+    create_unimplemented_device("PIO0",
+        RP2040_PIO0_BASE, 0x100000);
+    create_unimplemented_device("PIO1",
+        RP2040_PIO1_BASE, 0x100000);
+    create_unimplemented_device("XIP AUX",
+        RP2040_XIP_AUX_BASE, 0x100000);
+    create_unimplemented_device("SIO BASE",
+        RP2040_SIO_BASE, 0x4000);
+}
+
+static void rp2040_soc_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    dc->realize = rp2040_soc_realize;
+}
+
+static const TypeInfo rp2040_soc_info = {
+    .name           = TYPE_RP2040_SOC,
+    .parent         = TYPE_SYS_BUS_DEVICE,
+    .instance_size  = sizeof(RP2040State),
+    .instance_init  = rp2040_soc_init,
+    .class_init     = rp2040_soc_class_init,
+};
+
+static void rp2040_soc_types(void)
+{
+    type_register_static(&rp2040_soc_info);
+}
+
+type_init(rp2040_soc_types);

@@ -1,0 +1,23 @@
+I am going to implement the Raspberry PICO model together with PIO support.
+During implementation, I found QTest relatively slow
+and easy to test specific drivers without the whole board model.
+
+I introduced the QModuleTest framework to increase test coverage
+with fast execution of tests. This part is the major I want to
+share with the QEMU community. I hope I can get feedback about that.
+Attached is an example code of how to use it in real (with GPIO driver).
+
+Another part is how to deliver the new model.
+I prefer to split work into parts. Then, it will be easier for reviewers.
+Also, to me to fix issues regularly.
+To not break regression and mess up users, the board must be disabled
+in default configuration until stable enough to pass at least simple executables.
+Could I get the answer about way-of-working for such huge implementations?
+
+My plan has milestones:
+ * Bootrom executes official Raspberry Pico bootrom image
+ * QSPI Flash emulation
+ * Simple programs execution from QSPI flash
+ * Basic interfaces support: uart/spi
+ * Support for RP2040 PIO (programmable IO)
+ * Implementation of models for rest drivers
