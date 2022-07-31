@@ -138,3 +138,7 @@ specific_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa_ec.c'))
 
 # HPPA devices
 softmmu_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
+
+# RP2040 SoC 
+softmmu_ss.add(when: 'CONFIG_RP2040_SOC', if_true: files('rp2040_vreg.c', 'rp2040_resets.c', 'rp2040_clocks.c', 'rp2040_xosc.c'))
+
