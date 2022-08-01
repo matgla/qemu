@@ -24,6 +24,8 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "hw/loader.h"
+#include "hw/arm/armv7m.h"
 #include "hw/qdev-properties.h"
 #include "hw/qdev-clock.h"
 #include "qemu/error-report.h"
@@ -37,6 +39,7 @@
 static void raspi_pico_init(MachineState *machine)
 {
     DeviceState *dev;
+    int image_size;
     Clock *sysclk;
 
     sysclk = clock_new(OBJECT(machine), "SYSCLK");
@@ -46,7 +49,15 @@ static void raspi_pico_init(MachineState *machine)
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
 
-    armv7m_load_kernel(ARM_CPU(first_cpu), machine->kernel_filename, RP2040_SOC_ROM_SIZE);
+    armv7m_load_kernel(ARM_CPU(first_cpu), "/home/mateusz/bootrom.elf", RP2040_SOC_ROM_SIZE);
+    fprintf(stderr, "Loading firmware image: %s\n", machine->kernel_filename);
+
+    
+    image_size = load_image_targphys(machine->kernel_filename, 0x10000000, 16 * 1024 * 1024);
+    if (image_size < 0) {
+        error_report("Could not load kernel '%s'", machine->kernel_filename);
+        exit(1);
+    }
 }
 
 static void raspi_pico_machine_init(MachineClass *mc)

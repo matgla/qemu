@@ -37,6 +37,8 @@
 #include "hw/misc/rp2040_vreg.h"
 #include "hw/misc/rp2040_clocks.h"
 #include "hw/misc/rp2040_xosc.h"
+#include "hw/misc/rp2040_sio.h"
+#include "hw/misc/rp2040_ssi.h"
 
 #define TYPE_RP2040_SOC "rp2040_soc"
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040State, RP2040_SOC)
@@ -70,6 +72,8 @@ struct RP2040State {
     RP2040XOSCState xosc;
     RP2040ResetsState resets;
     RP2040VregState vreg;
+    RP2040SIOState sio;
+    RP2040SSIState ssi;
 
     MemoryRegion rom;
     MemoryRegion qspi_flash;

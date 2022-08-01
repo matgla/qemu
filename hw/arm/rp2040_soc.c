@@ -56,6 +56,8 @@ static const int spi_irq[RP2040_SOC_NUMBER_OF_SPIS] = {
 #define RP2040_SOC_RESETS_BASE 0x4000c000
 #define RP2040_SOC_VREG_BASE   0x40064000
 #define RP2040_SOC_XOSC_BASE   0x40024000
+#define RP2040_SOC_SIO_BASE    0xd0000000
+#define RP2040_SOC_SSI_BASE    0x18000000
 
 
 
@@ -86,6 +88,8 @@ static void rp2040_soc_init(Object *obj)
     object_initialize_child(obj, "vreg", &s->vreg, TYPE_RP2040_VREG);
     object_initialize_child(obj, "clocks", &s->clocks, TYPE_RP2040_CLOCKS);
     object_initialize_child(obj, "xosc", &s->xosc, TYPE_RP2040_XOSC);
+    object_initialize_child(obj, "sio", &s->sio, TYPE_RP2040_SIO);
+    object_initialize_child(obj, "ssi", &s->ssi, TYPE_RP2040_SSI);
 
     /* clocks initialization */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -173,6 +177,14 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         }
     }
 
+    /* ssi */ 
+    dev = DEVICE(&s->ssi);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ssi), errp)) {
+        return;
+    }
+    busdev = SYS_BUS_DEVICE(dev);
+    sysbus_mmio_map(busdev, 0, RP2040_SOC_SSI_BASE);
+
     create_unimplemented_device("SYSINFO",      0x40000000, 0x4000);
     create_unimplemented_device("SYSCFG",       0x40004000, 0x4000);
     // create_unimplemented_device("CLOCKS",       0x40008000, 0x4000);
@@ -197,6 +209,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     create_unimplemented_device("IO_BANK[0]",   0x40014000, 0x4000);
     create_unimplemented_device("IO_QSPI",      0x40018000, 0x4000);
     create_unimplemented_device("PADS_BANK[0]", 0x4001c000, 0x4000);
+    create_unimplemented_device("PADS_QSPI",    0x40020000, 0x4000);
 
     // create_unimplemented_device("XOSC",         0x40024000, 0x4000);
     /* xosc register */
@@ -233,7 +246,14 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     create_unimplemented_device("USBCTRL",      0x50100000, 0x4000);
     create_unimplemented_device("PIO[0]",       0x50200000, 0x4000);
     create_unimplemented_device("PIO[1]",       0x50300000, 0x4000);
-    create_unimplemented_device("SIO",          0xd0000000, 0x4000);
+    // create_unimplemented_device("SIO",          0xd0000000, 0x4000);
+    dev = DEVICE(&s->sio);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->sio), errp)) {
+        return;
+    }
+    busdev = SYS_BUS_DEVICE(dev);
+    sysbus_mmio_map(busdev, 0, RP2040_SOC_SIO_BASE);
+
     create_unimplemented_device("PPB",          0xea000000, 0x4000);
 }
 
