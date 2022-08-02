@@ -4,7 +4,7 @@
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
-#define TYPE_RP2040_SIO "rp2040_soc.sio"
+#define TYPE_RP2040_SIO "rp2040.sio"
 
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040SIOState, RP2040_SIO);
 

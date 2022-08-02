@@ -134,8 +134,8 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
 
     memory_region_add_subregion(system_memory, RP2040_SOC_SRAM_BASE_ADDRESS, &s->sram);
 
-    memory_region_init_rom(&s->qspi_flash, OBJECT(dev_soc), "RP2040.qspi_flash", RP2040_SOC_XIP_SIZE, &error_fatal);
-    memory_region_add_subregion(system_memory, RP2040_SOC_XIP_BASE_ADDRESS, &s->qspi_flash);
+    // memory_region_init_rom(&s->qspi_flash, OBJECT(dev_soc), "RP2040.qspi_flash", RP2040_SOC_XIP_SIZE, &error_fatal);
+    // memory_region_add_subregion(system_memory, RP2040_SOC_XIP_BASE_ADDRESS, &s->qspi_flash);
 
 
     /* Initialize cores */

@@ -4,7 +4,7 @@
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
-#define TYPE_RP2040_VREG "rp2040_soc.vreg"
+#define TYPE_RP2040_VREG "rp2040.vreg"
 
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040VregState, RP2040_VREG);
 

@@ -39,7 +39,6 @@
 static void raspi_pico_init(MachineState *machine)
 {
     DeviceState *dev;
-    int image_size;
     Clock *sysclk;
 
     sysclk = clock_new(OBJECT(machine), "SYSCLK");
@@ -53,16 +52,23 @@ static void raspi_pico_init(MachineState *machine)
     fprintf(stderr, "Loading firmware image: %s\n", machine->kernel_filename);
 
     
-    image_size = load_image_targphys(machine->kernel_filename, 0x10000000, 16 * 1024 * 1024);
-    if (image_size < 0) {
-        error_report("Could not load kernel '%s'", machine->kernel_filename);
-        exit(1);
-    }
+    /* create SPI flash */ 
+    dev = qdev_new("w25q80");
+    fprintf(stderr, "Created flash device\n");
+
+    // qdev_realize_and_unref(dev, BUS(s->ssi), &error_fatal);
+    
+
+    // image_size = load_image_targphys(machine->kernel_filename, 0x10000000, 16 * 1024 * 1024);
+    // if (image_size < 0) {
+    //     error_report("Could not load kernel '%s'", machine->kernel_filename);
+    //     exit(1);
+    // }
 }
 
 static void raspi_pico_machine_init(MachineClass *mc)
 {
-    mc->desc = "Raspberry PICO (cortex-m0)";
+    mc->desc = "Raspberry PICO (dual cortex-m0)";
     mc->init = raspi_pico_init;
 }
 

@@ -6,7 +6,7 @@
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
-#define TYPE_RP2040_RESETS "rp2040_soc.resets"
+#define TYPE_RP2040_RESETS "rp2040.resets"
 
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040ResetsState, RP2040_RESETS);
 

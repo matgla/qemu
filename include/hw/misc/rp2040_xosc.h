@@ -6,7 +6,7 @@
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
-#define TYPE_RP2040_XOSC "rp2040_soc.xosc"
+#define TYPE_RP2040_XOSC "rp2040.xosc"
 
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040XOSCState, RP2040_XOSC);
 
