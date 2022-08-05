@@ -29,6 +29,7 @@
 #include "hw/ssi/ssi.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
+#include "hw/ptimer.h"
 
 typedef union RP2040SSICtrlr0 
 {
@@ -77,6 +78,7 @@ struct RP2040SSIState
     MemoryRegion container;
     MemoryRegion mmio;
     MemoryRegion flash_mmio;
+    MemoryRegion mmio_ctrl;
     SSIBus *spi;
 
     union RP2040SSICtrlr0 ctrlr0;
@@ -87,6 +89,21 @@ struct RP2040SSIState
     AddressSpace flash_address_space;
     RP2040SSIFlash flash;
 
+    qemu_irq cs_line;
+
+    bool cs;
+
+    uint32_t rx_buffer[32];
+    uint32_t rx_buffer_write_index;
+    uint32_t rx_buffer_read_index;
+
+    uint32_t tx_buffer[32];
+    uint32_t tx_buffer_write_index;
+    uint32_t tx_buffer_read_index;
+
+
+    Clock *clock;
+    ptimer_state *ptimer;
 };
 
 #endif /* RP2040_SIO_H */

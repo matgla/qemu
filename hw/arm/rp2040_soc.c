@@ -30,6 +30,8 @@
 #include "hw/arm/rp2040_soc.h"
 #include "hw/misc/rp2040_vreg.h"
 
+#include "hw/ssi/ssi.h"
+
 // #include "qapi/error.h"
 
 static const uint32_t uart_addr[RP2040_SOC_NUMBER_OF_UARTS] = {
@@ -52,14 +54,13 @@ static const int spi_irq[RP2040_SOC_NUMBER_OF_SPIS] = {
     19
 };
 
-#define RP2040_SOC_CLOCKS_BASE 0x40008000
-#define RP2040_SOC_RESETS_BASE 0x4000c000
-#define RP2040_SOC_VREG_BASE   0x40064000
-#define RP2040_SOC_XOSC_BASE   0x40024000
-#define RP2040_SOC_SIO_BASE    0xd0000000
-#define RP2040_SOC_SSI_BASE    0x18000000
-
-
+#define RP2040_SOC_CLOCKS_BASE      0x40008000
+#define RP2040_SOC_RESETS_BASE      0x4000c000
+#define RP2040_SOC_VREG_BASE        0x40064000
+#define RP2040_SOC_XOSC_BASE        0x40024000
+#define RP2040_SOC_SIO_BASE         0xd0000000
+#define RP2040_SOC_SSI_BASE         0x10000000
+#define RP2040_SOC_GPIO_QSPI_BASE   0x40018000
 
 static void rp2040_soc_init(Object *obj)
 {
@@ -90,10 +91,15 @@ static void rp2040_soc_init(Object *obj)
     object_initialize_child(obj, "xosc", &s->xosc, TYPE_RP2040_XOSC);
     object_initialize_child(obj, "sio", &s->sio, TYPE_RP2040_SIO);
     object_initialize_child(obj, "ssi", &s->ssi, TYPE_RP2040_SSI);
+    object_initialize_child(obj, "gpio_qspi", &s->gpio_qspi, TYPE_RP2040_GPIO_QSPI);
 
     /* clocks initialization */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
     s->refclk = qdev_init_clock_in(DEVICE(s), "refclk", NULL, NULL, 0);
+
+    qdev_connect_clock_in(DEVICE(&s->ssi), "clock", s->sysclk);
+    // qdev_connect_clock_in(core, "cpuclk", s->sysclk);
+
 }
 
 static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
@@ -124,7 +130,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     clock_set_mul_div(s->refclk, 8, 1);
     clock_set_source(s->refclk, s->sysclk);
 
-        /* Initialize boot rom */ 
+    /* Initialize boot rom */ 
     memory_region_init_rom(&s->rom, OBJECT(dev_soc), "RP2040.rom", 
         RP2040_SOC_ROM_SIZE, &error_fatal);
     memory_region_add_subregion(system_memory, RP2040_SOC_ROM_BASE_ADDRESS, &s->rom);
@@ -207,7 +213,16 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
 
     create_unimplemented_device("PSM",          0x40010000, 0x4000);
     create_unimplemented_device("IO_BANK[0]",   0x40014000, 0x4000);
-    create_unimplemented_device("IO_QSPI",      0x40018000, 0x4000);
+    
+    // create_unimplemented_device("IO_QSPI",      0x40018000, 0x4000);
+    /* gpio qspi */ 
+    dev = DEVICE(&s->gpio_qspi);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->gpio_qspi), errp)) {
+        return;
+    }
+    busdev = SYS_BUS_DEVICE(dev);
+    sysbus_mmio_map(busdev, 0, RP2040_SOC_GPIO_QSPI_BASE);
+    
     create_unimplemented_device("PADS_BANK[0]", 0x4001c000, 0x4000);
     create_unimplemented_device("PADS_QSPI",    0x40020000, 0x4000);
 
@@ -255,6 +270,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     sysbus_mmio_map(busdev, 0, RP2040_SOC_SIO_BASE);
 
     create_unimplemented_device("PPB",          0xea000000, 0x4000);
+
 }
 
 static Property rp2040_soc_properties[] = {

@@ -25,6 +25,7 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "hw/loader.h"
+#include "hw/irq.h"
 #include "hw/arm/armv7m.h"
 #include "hw/qdev-properties.h"
 #include "hw/qdev-clock.h"
@@ -40,9 +41,14 @@ static void raspi_pico_init(MachineState *machine)
 {
     DeviceState *dev;
     Clock *sysclk;
-
+    DriveInfo *dinfo = drive_get_by_index(IF_MTD, 0);
+    qemu_irq cs_line;
     sysclk = clock_new(OBJECT(machine), "SYSCLK");
+    clock_set_hz(sysclk, 1200000);
+
     dev = qdev_new(TYPE_RP2040_SOC);
+    RP2040State *state = RP2040_SOC(dev);
+    RP2040SSIState *ssi = &state->ssi;
     qdev_prop_set_string(dev, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m0"));
     qdev_connect_clock_in(dev, "sysclk", sysclk);
 
@@ -55,6 +61,18 @@ static void raspi_pico_init(MachineState *machine)
     /* create SPI flash */ 
     dev = qdev_new("w25q80");
     fprintf(stderr, "Created flash device\n");
+
+    if (!dinfo)
+    {
+        fprintf(stderr, "Drive not set\n");
+        return;
+    }
+    qdev_prop_set_drive(dev, "drive", blk_by_legacy_dinfo(dinfo));
+    qdev_realize_and_unref(dev, BUS(ssi->spi), &error_fatal);
+    cs_line = qdev_get_gpio_in_named(dev, SSI_GPIO_CS, 0);
+    sysbus_connect_irq(SYS_BUS_DEVICE(ssi), 0, cs_line);
+    qemu_set_irq(cs_line, 1);
+    qdev_connect_gpio_out(DEVICE(&state->gpio_qspi), 1, cs_line);//ssi->cs_line);
 
     // qdev_realize_and_unref(dev, BUS(s->ssi), &error_fatal);
     

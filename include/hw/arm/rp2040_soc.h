@@ -39,6 +39,7 @@
 #include "hw/misc/rp2040_xosc.h"
 #include "hw/misc/rp2040_sio.h"
 #include "hw/misc/rp2040_ssi.h"
+#include "hw/gpio/rp2040_gpio.h"
 
 #define TYPE_RP2040_SOC "rp2040"
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040State, RP2040_SOC)
@@ -74,6 +75,7 @@ struct RP2040State {
     RP2040VregState vreg;
     RP2040SIOState sio;
     RP2040SSIState ssi;
+    RP2040GpioQspiState gpio_qspi;
 
 
 
