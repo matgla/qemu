@@ -1,168 +1,229 @@
 #include "qemu/osdep.h"
 #include "hw/irq.h"
 #include "trace.h"
+#include "qemu/log.h"
 
 #include "hw/gpio/rp2040_gpio.h"
 
+#define RP2040_IO_REGISTER_SIZE         0x8000
+#define RP2040_GPIO_REGISTER_SIZE       0x190
+#define RP2040_GPIO_QSPI_REGISTER_SIZE  0x58
 
-typedef union RP2040GpioStatus {
-    struct {
-        uint32_t __reserved6   : 8;
-        uint32_t out_from_peri : 1; /* type RO, reset 0x0 */
-        uint32_t out_to_pad    : 1; /* type RO, reset 0x0 */
-        uint32_t __reserved5   : 2;
-        uint32_t oe_from_peri  : 1; /* type RO, reset 0x0 */
-        uint32_t oe_to_pad     : 1; /* type RO, reset 0x0 */
-        uint32_t __reserved4   : 4;
-        uint32_t in_from_pad   : 1; /* type RO, reset 0x0 */
-        uint32_t __reserved3   : 1;
-        uint32_t in_to_peri    : 1; /* type RO, reset 0x0 */
-        uint32_t __reserved2   : 4;
-        uint32_t irq_from_pad  : 1; /* type RO, reset 0x0 */
-        uint32_t __reserved1   : 1; 
-        uint32_t irq_to_proc   : 1; /* type RO, reset 0x0 */
-        uint32_t __reserved0   : 4; 
-    };
-    uint32_t value;
-} RP2040GpioStatus;
 
-typedef union RP2040GpioControl {
-    struct {
-        uint32_t funcsel       : 5; /* type RW, reset 0x1f */
-        uint32_t __reserved4   : 3;
-        uint32_t outover       : 2; /* type RW, reset 0x0 */
-        uint32_t __reserved3   : 2;
-        uint32_t oeover        : 2; /* type RW, reset 0x0 */
-        uint32_t __reserved2   : 2;
-        uint32_t inover        : 2; /* type RW, reset 0x0 */
-        uint32_t __reserved1   : 10; 
-        uint32_t irqover       : 2; /* type RW, reset 0x0 */
-        uint32_t __reserved0   : 2; 
-    };
-    uint32_t value;
-} RP2040GpioControl;
-
-static void rp2040_gpio_qspi_write(void *opaque, hwaddr offset, 
-    uint64_t value, unsigned int size)
+typedef struct Rp2040GpioRegisterDesc
 {
-    RP2040GpioQspiState *s = RP2040_GPIO_QSPI(opaque);
-    fprintf(stderr, "Write to GPIO QSPI section offset: %lx, value: %lx\n", offset, value);
+    uint32_t state_and_control_end;
+    const RP2040GpioStatus *status;
+    RP2040GpioControl *control;
+    qemu_irq *irq;
+} Rp2040GpioRegisterDesc;
 
-    switch (offset)
-    {
-        case 0x00:
-        case 0x08:
-        case 0x10:
-        case 0x18:
-        case 0x20:
-        case 0x28:
-        {
-            fprintf(stderr, "Warning: try to write RO register\n");
-            return;
-        }
-        case 0x04:
-        case 0x0c:
-        case 0x14:
-        case 0x1c:
-        case 0x24:
-        case 0x2c:
-        {
-            hwaddr i = offset >> 3;
-            RP2040GpioControl ctrl;
-            ctrl.value = value;
-            fprintf(stderr, "Writing to control register of: %ld\n", i);
-            fprintf(stderr, "Ctrl {.irqover = %d, .inover = %d, .oeover = %d, .outver = %d, funcsel = %d}\n",
-                ctrl.irqover, ctrl.inover, ctrl.oeover, ctrl.outover, ctrl.funcsel);
-            
-            if ( ctrl.outover == 0x03)
-            {
-                qemu_set_irq(s->out[i], 1);
-            }
-            else if (ctrl.outover == 0x02) 
-            {
-                fprintf(stderr, "Tu nie dziala\n");
-                qemu_set_irq(s->out[i], 0);
-            }
+// static uint32_t rp2040_process_gpio_read(hwaddr offset, const Rp2040GpioRegisterDesc* desc)
+// {
+//     if (offset <= desc->state_and_control_end) /* Process status & control registers */
+//     {
+//         const hwaddr index = offset >> 2;
+//         const bool is_stat = (index % 2) == 0;
+//         if (is_stat)
+//         {
+//             return desc->status[index >> 1]._value;
+//         }
+//         else 
+//         {
+//             return desc->control[index >> 1]._value;
+//         }
+//     }
+//     return 0;
+// }
 
-            return;
-        }
-        
-    }
+// static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp2040GpioRegisterDesc* desc)
+// {
+//     if (offset <= desc->state_and_control_end) /* Process status & control registers */
+//     {
+//         const hwaddr index = offset >> 2;
+//         const bool is_stat = (index % 2) == 0;
+//         if (is_stat)
+//         {
+//             qemu_log_mask(LOG_GUEST_ERROR, "%s: Trying to write read only register at address: 0x%lx\n", __func__, offset);
+//             return;
+//         }
+//         else 
+//         {
+//             const hwaddr array_index = index >> 1;
+//             desc->control[array_index]._value = value;
+//             if (desc->control[array_index].outover)
+//             {
+//                 switch (desc->control[array_index].oeover)
+//                 {
+//                     case 0x00:
+//                     {
+//                         // how to trigger periph
+//                         return;
+//                     }
+//                     case 0x01:
+//                     {
+//                         // how to trigger periph
+//                         return;
+//                     }
+//                     case 0x02:
+//                     {
+//                         qemu_set_irq(desc->irq[array_index], 0);
+//                         return;
+//                     }
+//                     case 0x03:
+//                     {
+//                         fprintf(stderr, "SET IRQ TO 1\n");
+//                         qemu_set_irq(desc->irq[array_index], 1);
+//                         return;
+//                     }
+//                 }
+//             }
+//             return;
+//         }
+//     }
+// }
+
+
+// static void rp2040_gpio_qspi_write(void *opaque, hwaddr offset, 
+//     uint64_t value, unsigned int size)
+// {
+//     RP2040GpioState *state = RP2040_GPIO(opaque);
+//     const Rp2040GpioRegisterDesc desc = {
+//         .state_and_control_end = 0x058,
+//         .status = state->qspi_status,
+//         .control = state->qspi_ctrl,
+//         .irq = state->qspi_out,
+//     };
+//     rp2040_process_gpio_write(offset, value, &desc);
+// }
+
+// static uint64_t rp2040_gpio_qspi_read(void *opaque, hwaddr offset, unsigned int size)
+// {
+//     RP2040GpioState *state = RP2040_GPIO(opaque);
+//     const Rp2040GpioRegisterDesc desc = {
+//         .state_and_control_end = 0x058,
+//         .status = state->qspi_status,
+//         .control = state->qspi_ctrl,
+//         .irq = state->qspi_out,
+//     };
+
+//     return rp2040_process_gpio_read(offset, &desc);
+// }
+
+// static const MemoryRegionOps rp2040_gpio_qspi_io = {
+//     .read = rp2040_gpio_qspi_read,
+//     .write = rp2040_gpio_qspi_write,
+//     .endianness = DEVICE_LITTLE_ENDIAN,
+//     .impl.min_access_size = 4,
+//     .impl.max_access_size = 4,
+// };
+
+// static void rp2040_gpio_write(void *opaque, hwaddr offset, 
+//     uint64_t value, unsigned int size)
+// {
+//     RP2040GpioState *state = RP2040_GPIO(opaque);
+//     const Rp2040GpioRegisterDesc desc = {
+//         .state_and_control_end = 0x0ec,
+//         .status = state->gpio_status,
+//         .control = state->gpio_ctrl,
+//         .irq = state->gpio_out,
+//     };
+//     rp2040_process_gpio_write(offset, value, &desc);
+// }
+
+
+// static uint64_t rp2040_gpio_read(void *opaque, hwaddr offset, unsigned int size)
+// {
+//     RP2040GpioState *state = RP2040_GPIO(opaque);
+//     const Rp2040GpioRegisterDesc desc = {
+//         .state_and_control_end = 0x0ec,
+//         .status = state->gpio_status,
+//         .control = state->gpio_ctrl,
+//         .irq = state->gpio_out,
+//     };
+
+//     return rp2040_process_gpio_read(offset, &desc);
+// }
+
+
+// static const MemoryRegionOps rp2040_gpio_io = {
+//     .read = rp2040_gpio_read,
+//     .write = rp2040_gpio_write,
+//     .endianness = DEVICE_LITTLE_ENDIAN,
+//     .impl.min_access_size = 4,
+//     .impl.max_access_size = 4,
+// };
+
+
+// static void rp2040_gpio_set(void *opaque, int line, int value)
+// {
+// }
+
+// static void rp2040_gpio_qspi_set(void *opaque, int line, int value)
+// {
+// }
+
+static void rp2040_gpio_instance_init(Object *obj)
+{
+    // int i = 0;
+    // RP2040GpioState *state = RP2040_GPIO(obj);
+    // SysBusDevice *sysbus = SYS_BUS_DEVICE(obj);
+
+    // memory_region_init(&state->container, obj, TYPE_RP2040_GPIO, RP2040_IO_REGISTER_SIZE);
+    // sysbus_init_mmio(sysbus, &state->container);
+
+    // /* Initialize GPIOs */
+    // memory_region_init_io(&state->gpio_mmio, obj, &rp2040_gpio_io, state,
+    //     TYPE_RP2040_GPIO, RP2040_GPIO_REGISTER_SIZE);
+    // memory_region_add_subregion(&state->container, 0x0000, &state->gpio_mmio);
+
+    // qdev_init_gpio_out_named(DEVICE(state), state->gpio_out, "out", RP2040_GPIO_PINS);
+    // qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_set, "in", RP2040_GPIO_PINS);
+
+    // /* Initialize QSPI XIP GPIOs */
+    // memory_region_init_io(&state->qspi_mmio, obj, &rp2040_gpio_qspi_io, state,
+    //     TYPE_RP2040_GPIO, RP2040_GPIO_QSPI_REGISTER_SIZE);
+    // memory_region_add_subregion(&state->container, 0x4000, &state->qspi_mmio);
+
+    // qdev_init_gpio_out_named(DEVICE(state), &state->qspi_out[0], "qspi-out", RP2040_GPIO_QSPI_PINS - 2);
+    // qdev_init_gpio_out_named(DEVICE(state), &state->qspi_cs, "qspi-cs", 1);
+    // qdev_init_gpio_out_named(DEVICE(state), &state->qspi_sclk, "qspi-sclk", 1);
+    // qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_qspi_set, "qspi-in", RP2040_GPIO_QSPI_PINS - 2);
+
+    // for (i = 0; i < RP2040_GPIO_PINS; ++i)
+    // {
+    //     state->gpio_ctrl[i]._value = 0x00000000;
+    //     state->gpio_ctrl[i].funcsel = 0x1f;
+    //     state->gpio_status[i]._value = 0x00000000;
+    // }
+
+    // for (i = 0; i < RP2040_GPIO_QSPI_PINS - 2; ++i)
+    // {
+    //     state->qspi_ctrl[i]._value = 0x00000000;
+    //     state->qspi_ctrl[i].funcsel = 0x1f;
+    //     state->qspi_status[i]._value = 0x00000000;
+    // }
 }
 
-static uint64_t rp2040_gpio_qspi_read(void *opaque, hwaddr offset, unsigned int size)
-{
-    fprintf(stderr, "Read from GPIO QSPI section offset: %lx\n", offset);
-    switch (offset)
-    {
-        case 0x00:
-        case 0x08:
-        case 0x10:
-        case 0x18:
-        case 0x20:
-        case 0x28:
-        {
-            fprintf(stderr, "Warning: try to write RO register\n");
-            return 0;
-        }
-        case 0x04:
-        case 0x0c:
-        case 0x14:
-        case 0x1c:
-        case 0x24:
-        case 0x2c:
-        {
-            return 0;
-        }
-    }
-    return 0;
-}
-
-static const MemoryRegionOps rp2040_gpio_qspi_io = {
-    .read = rp2040_gpio_qspi_read,
-    .write = rp2040_gpio_qspi_write,
-    .endianness = DEVICE_LITTLE_ENDIAN,
-    .impl.min_access_size = 4,
-    .impl.max_access_size = 4,
-};
-
-static void rp2040_gpio_qspi_set(void *opaque, int line, int value)
-{
-}
-
-
-static void rp2040_gpio_qspi_instance_init(Object *obj)
-{
-    RP2040GpioQspiState *s = RP2040_GPIO_QSPI(obj);
-
-    memory_region_init_io(&s->mmio, obj, &rp2040_gpio_qspi_io, s,
-        TYPE_RP2040_GPIO_QSPI, 0x54);
-    sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->mmio);
-
-    qdev_init_gpio_in(DEVICE(s), rp2040_gpio_qspi_set, 5);
-    qdev_init_gpio_out(DEVICE(s), s->out, 5);
-
-
-}
-
-static void rp2040_gpio_qspi_class_init(ObjectClass *klass, void *data)
+static void rp2040_gpio_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->desc = "RP2040 GPIO QSPI";
+    dc->desc = "RP2040 GPIO";
 }
 
 static const TypeInfo rp2040_gpio_qspi_info = {
-    .name = TYPE_RP2040_GPIO_QSPI,
+    .name = TYPE_RP2040_GPIO,
     .parent = TYPE_SYS_BUS_DEVICE,
-    .instance_size = sizeof(RP2040GpioQspiState),
-    .instance_init = rp2040_gpio_qspi_instance_init, 
-    .class_init = rp2040_gpio_qspi_class_init,
+    .instance_size = sizeof(RP2040GpioState),
+    .instance_init = rp2040_gpio_instance_init, 
+    .class_init = rp2040_gpio_class_init,
 };
 
 static void rp2040_gpio_qspi_register_types(void)
 {
     type_register_static(&rp2040_gpio_qspi_info);
+    fprintf(stderr, "Register type\n");
 }
 
 type_init(rp2040_gpio_qspi_register_types)

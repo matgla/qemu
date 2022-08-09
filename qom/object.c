@@ -1173,6 +1173,7 @@ Object *object_ref(void *objptr)
     if (!obj) {
         return NULL;
     }
+    fprintf(stderr, "Refcount increase %d for %p\n", obj->ref, objptr);
     ref = qatomic_fetch_inc(&obj->ref);
     /* Assert waaay before the integer overflows */
     g_assert(ref < INT_MAX);
@@ -1188,6 +1189,7 @@ void object_unref(void *objptr)
     g_assert(obj->ref > 0);
 
     /* parent always holds a reference to its children */
+    fprintf(stderr, "Refcount %d for %p\n", obj->ref, objptr);
     if (qatomic_fetch_dec(&obj->ref) == 1) {
         object_finalize(obj);
     }

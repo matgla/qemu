@@ -3351,6 +3351,8 @@ common_ss.add(hwcore)
 # Targets #
 ###########
 
+libs_modules = {}
+
 emulator_modules = []
 foreach m : block_mods + softmmu_mods
   emulator_modules += shared_module(m.name(),
@@ -3481,6 +3483,8 @@ foreach target : target_dirs
                  build_by_default: false,
                  name_suffix: 'fa')
 
+
+
   if target.endswith('-softmmu')
     execs = [{
       'name': 'qemu-system-' + target_name,
@@ -3519,6 +3523,10 @@ foreach target : target_dirs
       exe_name += '-unsigned'
     endif
 
+    libs_modules += {
+      target: {'lib': lib, 'deps': arch_deps + deps + exe['dependencies'], 'link_to': exe.get('link_depends', [])}
+    }
+    
     emulator = executable(exe_name, exe['sources'],
                install: true,
                c_args: c_args,

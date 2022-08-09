@@ -61,29 +61,25 @@ struct RP2040State {
     /*< private >*/
     SysBusDevice parent_obj;
 
-    /*< public >*/
-    char *cpu_type;
-
     /* ARMv7 is backward compatible with ARMv6 see (https://developer.arm.com/documentation/ddi0419/c/Application-Level-Architecture/Introduction/About-the-ARM-architecture-profiles?lang=en) */
     ARMv7MState armv6m[RP2040_SOC_NUMBER_OF_CORES];
 
-    PL011State uart[RP2040_SOC_NUMBER_OF_UARTS];
-    PL011State spi[RP2040_SOC_NUMBER_OF_SPIS];
-    RP2040ClocksState clocks;
-    RP2040XOSCState xosc;
-    RP2040ResetsState resets;
-    RP2040VregState vreg;
-    RP2040SIOState sio;
-    RP2040SSIState ssi;
-    RP2040GpioQspiState gpio_qspi;
+    // PL011State uart[RP2040_SOC_NUMBER_OF_UARTS];
+    // PL011State spi[RP2040_SOC_NUMBER_OF_SPIS];
+    // RP2040ClocksState clocks;
+    // RP2040XOSCState xosc;
+    // RP2040ResetsState resets;
+    // RP2040VregState vreg;
+    // RP2040SIOState sio;
+    // RP2040SSIState ssi;
+    
+    RP2040GpioState gpio;
 
-
-
-    MemoryRegion rom;
-    MemoryRegion sram;
+    // MemoryRegion rom;
+    // MemoryRegion sram;
 
     Clock *sysclk;
-    Clock *refclk;
+    // Clock *refclk;
 };
 
 #endif

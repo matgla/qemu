@@ -495,7 +495,10 @@ redo:
     words = g_strsplit(line->str, " ", 0);
     g_string_free(line, TRUE);
 
+    fprintf(stderr, "Wait what 1: %s\n", words[0]);
+    fprintf(stderr, "Wait what 2: %s\n", words[1]);
     if (strcmp(words[0], "IRQ") == 0) {
+        fprintf(stderr, "We have an IRQ\n");
         long irq;
         int ret;
 

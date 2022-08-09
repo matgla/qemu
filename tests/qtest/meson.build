@@ -18,14 +18,7 @@ slow_qtests = {
 }
 
 qtests_generic = [
-  'cdrom-test',
-  'device-introspect-test',
-  'machine-none-test',
-  'qmp-test',
-  'qmp-cmd-test',
-  'qom-test',
-  'test-hmp',
-  'qos-test',
+
 ]
 if config_host.has_key('CONFIG_MODULES')
   qtests_generic += [ 'modules-test' ]
@@ -195,14 +188,11 @@ qtests_aspeed = \
   ['aspeed_hace-test',
    'aspeed_smc-test',
    'aspeed_gpio-test']
+qtests_rp2040 = \
+  ['rp2040_gpio-test']
+
 qtests_arm = \
-  (config_all_devices.has_key('CONFIG_MPS2') ? ['sse-timer-test'] : []) + \
-  (config_all_devices.has_key('CONFIG_CMSDK_APB_DUALTIMER') ? ['cmsdk-apb-dualtimer-test'] : []) + \
-  (config_all_devices.has_key('CONFIG_CMSDK_APB_TIMER') ? ['cmsdk-apb-timer-test'] : []) + \
-  (config_all_devices.has_key('CONFIG_CMSDK_APB_WATCHDOG') ? ['cmsdk-apb-watchdog-test'] : []) + \
-  (config_all_devices.has_key('CONFIG_PFLASH_CFI02') ? ['pflash-cfi02-test'] : []) +         \
-  (config_all_devices.has_key('CONFIG_ASPEED_SOC') ? qtests_aspeed : []) + \
-  (config_all_devices.has_key('CONFIG_NPCM7XX') ? qtests_npcm7xx : []) + \
+  (config_all_devices.has_key('CONFIG_RP2040_SOC') ? qtests_rp2040 : []) + \
   ['arm-cpu-features',
    'microbit-test',
    'test-arm-mptimer',
