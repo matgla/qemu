@@ -18,7 +18,7 @@ typedef struct Rp2040GpioRegisterDesc
     qemu_irq *irq;
 } Rp2040GpioRegisterDesc;
 
-static uint32_t rp2040_process_gpio_read(hwaddr offset, const Rp2040GpioRegisterDesc* desc)
+static uint32_t rp2040_process_gpio_read(hwaddr offset, const Rp2040GpioRegisterDesc* desc, const char *name)
 {
     if (offset <= desc->state_and_control_end) /* Process status & control registers */
     {
@@ -33,10 +33,12 @@ static uint32_t rp2040_process_gpio_read(hwaddr offset, const Rp2040GpioRegister
             return desc->control[index >> 1]._value;
         }
     }
+
+    qemu_log_mask(LOG_UNIMP, "GPIO(%s) register at offset: 0x%" HWADDR_PRIX " not implemented.\n", name, offset);
     return 0;
 }
 
-static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp2040GpioRegisterDesc* desc)
+static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp2040GpioRegisterDesc* desc, const char *name)
 {
     if (offset <= desc->state_and_control_end) /* Process status & control registers */
     {
@@ -51,9 +53,9 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp204
         {
             const hwaddr array_index = index >> 1;
             desc->control[array_index]._value = value;
-            if (desc->control[array_index].outover)
+            if (desc->control[array_index].oeover == 0x03)
             {
-                switch (desc->control[array_index].oeover)
+                switch (desc->control[array_index].outover)
                 {
                     case 0x00:
                     {
@@ -80,6 +82,8 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp204
             return;
         }
     }
+
+    qemu_log_mask(LOG_UNIMP, "GPIO(%s) register at offset: 0x%" HWADDR_PRIX " not implemented.\n", name, offset);
 }
 
 
@@ -93,7 +97,7 @@ static void rp2040_gpio_qspi_write(void *opaque, hwaddr offset,
         .control = state->qspi_ctrl,
         .irq = state->qspi_out,
     };
-    rp2040_process_gpio_write(offset, value, &desc);
+    rp2040_process_gpio_write(offset, value, &desc, "QSPI");
 }
 
 static uint64_t rp2040_gpio_qspi_read(void *opaque, hwaddr offset, unsigned int size)
@@ -106,7 +110,7 @@ static uint64_t rp2040_gpio_qspi_read(void *opaque, hwaddr offset, unsigned int 
         .irq = state->qspi_out,
     };
 
-    return rp2040_process_gpio_read(offset, &desc);
+    return rp2040_process_gpio_read(offset, &desc, "QSPI");
 }
 
 static const MemoryRegionOps rp2040_gpio_qspi_io = {
@@ -127,7 +131,7 @@ static void rp2040_gpio_write(void *opaque, hwaddr offset,
         .control = state->gpio_ctrl,
         .irq = state->gpio_out,
     };
-    rp2040_process_gpio_write(offset, value, &desc);
+    rp2040_process_gpio_write(offset, value, &desc, "GPIO");
 }
 
 
@@ -141,7 +145,7 @@ static uint64_t rp2040_gpio_read(void *opaque, hwaddr offset, unsigned int size)
         .irq = state->gpio_out,
     };
 
-    return rp2040_process_gpio_read(offset, &desc);
+    return rp2040_process_gpio_read(offset, &desc, "GPIO");
 }
 
 
