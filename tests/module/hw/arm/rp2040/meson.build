@@ -11,11 +11,11 @@ test_deps = {
 
 foreach test_name, extra: tests
   src = [test_name + '.c']
-  deps = [moduletest]
+  deps = [qmodule_test]
 
   exe = executable(test_name, src, genh, dependencies: deps, 
     objects: libs_modules.get('arm-softmmu').get('lib').extract_all_objects(recursive: true),
-    link_depends: [qemu_syms, libmoduletest] + libs_modules.get('arm-softmmu').get('link_to'))
+    link_depends: [qemu_syms, libqmodule_test] + libs_modules.get('arm-softmmu').get('link_to'))
 
   test(test_name, exe,
        depends: test_deps.get(test_name, []),
