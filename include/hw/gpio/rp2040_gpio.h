@@ -67,4 +67,11 @@ struct RP2040GpioState {
     qemu_irq          qspi_out[RP2040_GPIO_QSPI_PINS - 2];
 };
 
+/* 
+    GPIO Registers has aliases in memory to perform operations: 
+    addr + 0x1000 -> XOR operation 
+    addr + 0x2000 -> SET bitmask operation 
+    addr + 0x3000 -> CLEAR bitmask operation
+*/
+
 #endif /* RP2040_GPIO_QSPI_H */ 

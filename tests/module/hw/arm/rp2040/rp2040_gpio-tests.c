@@ -36,31 +36,61 @@ static void test_finalize_sut(RP2040GpioState *sut, MemoryRegion *test_memory)
 }
 
 
+#define RP2040_ATOMIC_XOR_OFFSET 0x1000
+#define RP2040_ATOMIC_SET_OFFSET 0x2000
+#define RP2040_ATOMIC_CLEAR_OFFSET 0x3000
+
+#define RP2040_GPIO_CTRL_FUNCSEL_BITS 0x0000001f
+#define RP2040_GPIO_CTRL_OUTOVER_BITS 0x00000300
+#define RP2040_GPIO_CTRL_OEOVER_BITS  0x00003000
+
+static void register_bitmask_xor(hwaddr base_address, const uint32_t bitmask)
+{
+    qmt_memory_write(base_address + RP2040_ATOMIC_XOR_OFFSET, &bitmask, sizeof(bitmask));
+}
+
+static void register_bitmask_set(hwaddr base_address, const uint32_t bitmask)
+{
+    qmt_memory_write(base_address + RP2040_ATOMIC_SET_OFFSET, &bitmask, sizeof(bitmask));
+}
+
+static void register_bitmask_clear(hwaddr base_address,  const uint32_t bitmask)
+{
+    qmt_memory_write(base_address + RP2040_ATOMIC_CLEAR_OFFSET, &bitmask, sizeof(bitmask));
+}
+
+static void register_set_with_mask(hwaddr base_address, const uint32_t value, const uint32_t mask)
+{
+    uint32_t reg;
+    qmt_memory_read(base_address, &reg, sizeof(reg));
+    register_bitmask_xor(base_address, (reg ^ value) & mask);
+}
+
 static void test_write_to_output_should_raise_irq(RP2040GpioTestsFixture *fixture, gconstpointer data)
 {
     qemu_irq irq_spy;
 
     /* Test Data */
-    const RP2040GpioControl set_output_to_high = {
-        .funcsel = 0x1f,
-        .outover = 0x03,
+    const RP2040GpioControl enable_output = {
+        .funcsel = 0x00,
+        .outover = 0x00,
         .oeover = 0x03,
         .inover = 0x00,
         .irqover = 0x00
     };
 
-    const RP2040GpioControl set_output_to_high_but_not_enable = {
-        .funcsel = 0x1f,
+    const RP2040GpioControl set_output_high = {
+        .funcsel = 0x00,
         .outover = 0x03,
-        .oeover = 0x02,
+        .oeover = 0x00,
         .inover = 0x00,
         .irqover = 0x00
     };
 
-    const RP2040GpioControl set_output_to_low = {
-        .funcsel = 0x1f,
+    const RP2040GpioControl set_output_low = {
+        .funcsel = 0x00,
         .outover = 0x02,
-        .oeover = 0x03,
+        .oeover = 0x00,
         .inover = 0x00,
         .irqover = 0x00
     };
@@ -69,13 +99,39 @@ static void test_write_to_output_should_raise_irq(RP2040GpioTestsFixture *fixtur
     /* Perform GPIO test */
     for (int i = 0; i < RP2040_GPIO_PINS; ++i) 
     {
+        uint32_t reg;
+        uint32_t status;
+        hwaddr ctrl_addr = 0x04 + i * 0x08;
+        hwaddr status_addr = i * 0x08;
         irq_spy = qemu_allocate_irq(irq_spy_handler, NULL, i);
-        QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(1));
         qdev_connect_gpio_out_named(DEVICE(&fixture->sut), "out", i, irq_spy);
-        qmt_memory_write(0x04 + i * 0x08, &set_output_to_high, sizeof(RP2040GpioControl));
-        qmt_memory_write(0x04 + i * 0x08, &set_output_to_high_but_not_enable, sizeof(RP2040GpioControl));
+        register_bitmask_set(ctrl_addr, enable_output._value);
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000301f);
+
+        qmt_memory_read(status_addr, &status, sizeof(uint32_t));
+        g_assert_cmphex(status, ==, 0x00002000);
+        QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(1));
+        register_bitmask_set(ctrl_addr, set_output_high._value);
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000331f);
+        qmt_memory_read(status_addr, &status, sizeof(uint32_t));
+        g_assert_cmphex(status, ==, 0x050a2200); /* value after filtering out reserved fields */
+
+        register_bitmask_clear(ctrl_addr, RP2040_GPIO_CTRL_OUTOVER_BITS);
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000301f);
+        qmt_memory_read(status_addr, &status, sizeof(uint32_t));
+        g_assert_cmphex(status, ==, 0x00002000);
+        
         QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(0));
-        qmt_memory_write(0x04 + i * 0x08, &set_output_to_low, sizeof(RP2040GpioControl));
+        register_bitmask_set(ctrl_addr, set_output_low._value);
+
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000321f);
+
+        qmt_memory_read(status_addr, &status, sizeof(uint32_t));
+        g_assert_cmphex(status, ==, 0x00002000);
 
         qemu_free_irq(irq_spy);
     }
@@ -83,17 +139,132 @@ static void test_write_to_output_should_raise_irq(RP2040GpioTestsFixture *fixtur
     /* Perform QSPI test */
     for (int i = 0; i < RP2040_GPIO_QSPI_PINS - 2; ++i) 
     {
+        uint32_t reg;
+        hwaddr ctrl_addr = 0x04 + i * 0x08 + 0x4000;
         irq_spy = qemu_allocate_irq(irq_spy_handler, NULL, i);
-        QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(1));
         qdev_connect_gpio_out_named(DEVICE(&fixture->sut), "qspi-out", i, irq_spy);
-        qmt_memory_write(0x04 + i * 0x08 + 0x4000, &set_output_to_high, sizeof(RP2040GpioControl));
-        qmt_memory_write(0x04 + i * 0x08 + 0x4000, &set_output_to_high_but_not_enable, sizeof(RP2040GpioControl));
+        register_bitmask_set(ctrl_addr, enable_output._value);
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000301f);
+        QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(1));
+        register_bitmask_set(ctrl_addr, set_output_high._value);
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000331f);
+
+        register_bitmask_clear(ctrl_addr, RP2040_GPIO_CTRL_OUTOVER_BITS);
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000301f);
 
         QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(0));
-        qmt_memory_write(0x04 + i * 0x08 + 0x4000, &set_output_to_low, sizeof(RP2040GpioControl));
+        register_bitmask_set(ctrl_addr, set_output_low._value);
+
+        qmt_memory_read(ctrl_addr, &reg, sizeof(uint32_t));
+        g_assert_cmphex(reg, ==, 0x0000321f);
+
         qemu_free_irq(irq_spy);
     }
 }
+
+static void test_aliased_access_gpio(RP2040GpioTestsFixture *fixture, gconstpointer data)
+{
+    const RP2040GpioControl test_data = {
+        .funcsel = 0x12,
+        .outover = 0x02,
+        .oeover = 0x01,
+        .inover = 0x03,
+        .irqover = 0x02
+    };
+
+    const RP2040GpioControl test_data_2 = {
+        .funcsel = 0x12,
+        .outover = 0x03,
+        .oeover = 0x00,
+        .inover = 0x03,
+        .irqover = 0x01
+    };
+
+    const RP2040GpioControl test_data_3 = {
+        .funcsel = 0x1f,
+        .outover = 0x03,
+        .oeover = 0x03,
+        .inover = 0x03,
+        .irqover = 0x03
+    };
+
+    hwaddr addr = 0x04 + 0x00 * 0x08;
+    uint32_t reg;
+
+    register_bitmask_set(addr, test_data._value);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x2003121f);
+
+    register_set_with_mask(addr, 0x12, RP2040_GPIO_CTRL_FUNCSEL_BITS);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x20031212);
+
+    register_bitmask_xor(addr, test_data_2._value);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x30001100);
+
+    register_set_with_mask(addr, test_data_3._value, 0xffffffff);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x3003331f);
+
+    register_bitmask_clear(addr, test_data_3._value);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x00000000);
+}
+
+static void test_aliased_access_gpio_qspi(RP2040GpioTestsFixture *fixture, gconstpointer data)
+{
+    const RP2040GpioControl test_data = {
+        .funcsel = 0x12,
+        .outover = 0x02,
+        .oeover = 0x01,
+        .inover = 0x03,
+        .irqover = 0x02
+    };
+
+    const RP2040GpioControl test_data_2 = {
+        .funcsel = 0x12,
+        .outover = 0x03,
+        .oeover = 0x00,
+        .inover = 0x03,
+        .irqover = 0x01
+    };
+
+    const RP2040GpioControl test_data_3 = {
+        .funcsel = 0x1f,
+        .outover = 0x03,
+        .oeover = 0x03,
+        .inover = 0x03,
+        .irqover = 0x03
+    };
+
+    hwaddr addr = 0x04 + 0x02 * 0x08 + 0x4000;
+    uint32_t reg;
+
+    register_bitmask_set(addr, test_data._value);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x2003121f);
+
+    register_set_with_mask(addr, 0x12, RP2040_GPIO_CTRL_FUNCSEL_BITS);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x20031212);
+
+    register_bitmask_xor(addr, test_data_2._value);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x30001100);
+
+    register_set_with_mask(addr, test_data_3._value, 0xffffffff);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x3003331f);
+
+    register_bitmask_clear(addr, test_data_3._value);
+    qmt_memory_read(addr, &reg, sizeof(uint32_t));
+    g_assert_cmphex(reg, ==, 0x00000000);
+}
+
 
 // static void test_invert_interrupt(RP2040GpioTestsFixture *fixture, gconstpointer data)
 // {
@@ -191,8 +362,12 @@ void qmt_register_testcases(MemoryRegion *test_memory)
     g_test_add("/rp2040/gpio/test_initialized_state", RP2040GpioTestsFixture, 
         test_memory, rp2040_gpio_tests_setup, test_initialized_state,
         rp2040_gpio_tests_teardown);
-    // g_test_add("/rp2040/gpio/test_write_interrupt_output", RP2040GpioTestsFixture, 
-    //     test_memory, rp2040_gpio_tests_setup, test_invert_interrupt,
-    //     rp2040_gpio_tests_teardown);
 
+    g_test_add("/rp2040/gpio/test_aliased_access_gpio", RP2040GpioTestsFixture, 
+        test_memory, rp2040_gpio_tests_setup, test_aliased_access_gpio,
+        rp2040_gpio_tests_teardown);
+
+    g_test_add("/rp2040/gpio/test_aliased_access_gpio_qspi", RP2040GpioTestsFixture, 
+        test_memory, rp2040_gpio_tests_setup, test_aliased_access_gpio_qspi,
+        rp2040_gpio_tests_teardown);
 } 

@@ -13,7 +13,7 @@
 typedef struct Rp2040GpioRegisterDesc
 {
     uint32_t state_and_control_end;
-    const RP2040GpioStatus *status;
+    RP2040GpioStatus *status;
     RP2040GpioControl *control;
     qemu_irq *irq;
 } Rp2040GpioRegisterDesc;
@@ -38,8 +38,61 @@ static uint32_t rp2040_process_gpio_read(hwaddr offset, const Rp2040GpioRegister
     return 0;
 }
 
+typedef enum {
+    RP2040_NORMAL_ACCESS,
+    RP2040_XOR_ON_WRITE,
+    RP2040_SET_ON_WRITE,
+    RP2040_CLEAN_ON_WRITE,
+} RP2040AccessType;
+
+static RP2040AccessType rp2040_get_access_type(const hwaddr addr)
+{
+    if ((addr & 0x3000) == 0x0000)
+    {
+        return RP2040_NORMAL_ACCESS;
+    }
+    
+    if (addr & 0x1000) 
+    {
+        return RP2040_XOR_ON_WRITE;
+    }
+    
+    if (addr & 0x2000)
+    {
+        return RP2040_SET_ON_WRITE;
+    }
+
+    return RP2040_CLEAN_ON_WRITE;
+}
+
+static void rp2040_write_to_register(RP2040AccessType type, uint32_t *reg, uint32_t value)
+{
+    switch (type)
+    {
+        case RP2040_NORMAL_ACCESS:
+        {
+            *reg = value;
+        } break;
+        case RP2040_XOR_ON_WRITE:
+        {
+            *reg ^= value;
+        } break;
+        case RP2040_SET_ON_WRITE:
+        {
+            *reg |= value;
+        } break;
+        case RP2040_CLEAN_ON_WRITE:
+        {
+            *reg &= ~(value);
+        } break;
+    }
+}
+
 static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp2040GpioRegisterDesc* desc, const char *name)
 {
+    RP2040AccessType access = rp2040_get_access_type(offset);
+    offset = offset & 0x0fff;
+
     if (offset <= desc->state_and_control_end) /* Process status & control registers */
     {
         const hwaddr index = offset >> 2;
@@ -52,11 +105,23 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp204
         else 
         {
             const hwaddr array_index = index >> 1;
-            desc->control[array_index]._value = value;
+
+            rp2040_write_to_register(access, &desc->control[array_index]._value, value);
+
             if (desc->control[array_index].oeover == 0x03)
             {
+                desc->status[array_index].oetopad = 1;
+
+                desc->status[array_index].irqtoproc = 0;
+                desc->status[array_index].irqfrompad = 0;
+                desc->status[array_index].intoperi = 0;
+                desc->status[array_index].infrompad = 0;
+                desc->status[array_index].outtopad = 0;
+
                 switch (desc->control[array_index].outover)
                 {
+  
+
                     case 0x00:
                     {
                         // how to trigger periph
@@ -69,15 +134,26 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp204
                     }
                     case 0x02:
                     {
+                        desc->status[array_index].outtopad = 0;
+
                         qemu_set_irq(desc->irq[array_index], 0);
                         return;
                     }
                     case 0x03:
                     {
+                        desc->status[array_index].irqtoproc = 1;
+                        desc->status[array_index].irqfrompad = 1;
+                        desc->status[array_index].intoperi = 1;
+                        desc->status[array_index].infrompad = 1;
+                        desc->status[array_index].outtopad = 1;
                         qemu_set_irq(desc->irq[array_index], 1);
                         return;
                     }
                 }
+            }
+            else 
+            {
+                desc->status[array_index].oetopad = 0;
             }
             return;
         }
@@ -176,7 +252,7 @@ static void rp2040_gpio_realize(DeviceState *dev, Error **errp)
 
     /* Initialize GPIOs */
     memory_region_init_io(&state->gpio_mmio, OBJECT(dev), &rp2040_gpio_io, state,
-        "io", RP2040_GPIO_REGISTER_SIZE);
+        "io", 0x4000);
     memory_region_add_subregion(&state->container, 0x0000, &state->gpio_mmio);
 
     qdev_init_gpio_out_named(DEVICE(state), state->gpio_out, "out", RP2040_GPIO_PINS);
@@ -184,7 +260,7 @@ static void rp2040_gpio_realize(DeviceState *dev, Error **errp)
 
     /* Initialize QSPI XIP GPIOs */
     memory_region_init_io(&state->qspi_mmio, OBJECT(dev), &rp2040_gpio_qspi_io, state,
-        "qspi", RP2040_GPIO_QSPI_REGISTER_SIZE);
+        "qspi", 0x4000);
     memory_region_add_subregion(&state->container, 0x4000, &state->qspi_mmio);
 
 
