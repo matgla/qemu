@@ -17,7 +17,7 @@ The usual way to run these tests is:
 
   make check
 
-which includes QAPI schema tests, unit tests, QTests and some iotests.
+which includes QAPI schema tests, unit tests, module tests, QTests and some iotests.
 Different sub-types of "make check" tests will be explained below.
 
 Before running tests, it is best to build QEMU programs first. Some tests
@@ -66,6 +66,33 @@ and gtester options. If necessary, you can run
 
 and copy the actual command line which executes the unit test, then run
 it from the command line.
+
+Module tests 
+============
+
+Module tests are C tests that link to individual QEMU module/driver. 
+They can be invoked with ``make check-module``. 
+
+If you are writing new driver simulator, consider adding module test. They are much faster than full blown simulation from QTest. 
+Additionaly whole testing bases on pure driver interface. 
+
+As a framework module tests reuses glib testing library similar to unit tests, with some extensions to generate faked functions that can be verified. 
+To check API please check ``tests/module/qmodule_test.h``.
+
+To add new module test: 
+
+1. Create a new source file inside ``tests/module/*`` directory. 
+
+2. Add fixture to automatically call ``qmt_initialize()`` and ``qmt_verify_and_release()`` at creation and finalization. 
+
+3. Implement ``qmt_register_testcases`` function which intercepts MemoryRegion * parameter that holds memory base for testing. 
+
+4. Instatiate your driver as child of memory base from step 3. This will handle driver destruction at test finalization.
+
+5. Challenge your driver if behaves correctly.
+
+
+Module tests similary to unit tests don't require any environment variables. Simplest way for debuging is executing under ``gdb``. 
 
 QTest
 ~~~~~

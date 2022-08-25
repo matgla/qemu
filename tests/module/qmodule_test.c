@@ -8,6 +8,26 @@
 #include "qemu/rcu.h"
 #include "exec/address-spaces.h"
 
+typedef void(*QMTReleaseCall)(void *arg);
+typedef bool(*QMTCompareCall)(const QMTArgument *expected, const QMTArgument *argument);
+
+typedef struct QMTCompare {
+    QMTArgument expected; 
+    QMTCompareCall function;
+    QMTReleaseCall release;
+} QMTCompare;
+
+struct QMTExpectationData {
+    QMTCompare compare; 
+    QMTPrintCall printer;
+    char *expect_print;
+}; 
+
+struct QMTRegisteredCall {
+    struct QMTArgument *arguments;
+    int argument_count;
+};
+
 
 /*********************************************/
 /*         TEST MEMORY MANAGEMENT            */
@@ -292,8 +312,8 @@ static void qmt_expectation_set_free(QMTExpectationSet *set)
 
 static void qmt_register_call(QMTExpectationSet *set, const int number_of_arguments, const QMTArgument *arguments)
 {
-    QMTRegisteredCall *call;
-    set->registered_calls = (QMTRegisteredCall*)g_realloc(set->registered_calls, sizeof(QMTRegisteredCall) * (set->registered_call_count + 1));
+    struct QMTRegisteredCall *call;
+    set->registered_calls = (struct QMTRegisteredCall*)g_realloc(set->registered_calls, sizeof(struct QMTRegisteredCall) * (set->registered_call_count + 1));
     call = &set->registered_calls[set->registered_call_count];
     call->argument_count = number_of_arguments;
     call->arguments = (QMTArgument *)g_malloc0(sizeof(QMTArgument) * number_of_arguments);
@@ -404,7 +424,7 @@ QMTExpectation *qmt_expect_call(const char *name, const char *file, int line, vo
         set->registered_calls = NULL;
         set->arguments_count = n;
         set->name = name;
-        set->printers = g_malloc0(sizeof(qmt_print_fun) * n);
+        set->printers = g_malloc0(sizeof(QMTPrintCall) * n);
     }
 
 
@@ -420,11 +440,12 @@ QMTExpectation *qmt_expect_call(const char *name, const char *file, int line, vo
     va_start(vaptr, n);
     for (int i = 0; i < n; ++i) {
         QMTCompare *compare = &expectation.comparators[i];
-        QMTExpectationData e = va_arg(vaptr, QMTExpectationData);
-        *compare = e.compare;
-        set->printers[i] = e.printer;
-        expectation.expected_argument_print[i] = g_strdup(e.expect_print);
-        g_free(e.expect_print);
+        struct QMTExpectationData *e = va_arg(vaptr, struct QMTExpectationData *);
+        *compare = e->compare;
+        set->printers[i] = e->printer;
+        expectation.expected_argument_print[i] = g_strdup(e->expect_print);
+        g_free(e->expect_print);
+        g_free(e);
     }
     va_end(vaptr);
 
@@ -509,15 +530,15 @@ static bool qmt_compare_any(const QMTArgument *lhs, const QMTArgument *rhs)
 }
 
 /* Expectations */ 
-QMTExpectationData qmt_expect_any(void) 
+struct QMTExpectationData *qmt_expect_any(void) 
 {
-    QMTExpectationData e;
-    e.compare.expected.data = NULL;
-    e.compare.expected.size = 0;
-    e.compare.function = qmt_compare_any;
-    e.compare.release = NULL;
-    e.printer = qmt_print_unknown;
-    e.expect_print = g_strdup_printf("expect_any()");
+    struct QMTExpectationData *e = g_new0(struct QMTExpectationData, 1);
+    e->compare.expected.data = NULL;
+    e->compare.expected.size = 0;
+    e->compare.function = qmt_compare_any;
+    e->compare.release = NULL;
+    e->printer = qmt_print_unknown;
+    e->expect_print = g_strdup_printf("expect_any()");
     return e;
 }
 
@@ -532,36 +553,36 @@ static QMTCompare qmt_expect_ptr_impl(void *value)
     return compare;
 }
 
-QMTExpectationData qmt_expect_ptr(void *ptr)
+struct QMTExpectationData *qmt_expect_ptr(void *ptr)
 {
-    QMTExpectationData e;
-    e.compare = qmt_expect_ptr_impl(ptr);
-    e.expect_print = g_strdup_printf("expect_ptr(%p)", ptr);
-    e.printer = qmt_print_ptr;
+    struct QMTExpectationData *e = g_new0(struct QMTExpectationData, 1);
+    e->compare = qmt_expect_ptr_impl(ptr);
+    e->expect_print = g_strdup_printf("expect_ptr(%p)", ptr);
+    e->printer = qmt_print_ptr;
     return e;
 }
 
 
-QMTExpectationData qmt_expect_null(void)
+struct QMTExpectationData *qmt_expect_null(void)
 {
-    QMTExpectationData e;
-    e.compare = qmt_expect_ptr_impl(NULL);
-    e.expect_print = g_strdup_printf("expect_null()");
-    e.printer = qmt_print_ptr;
+    struct QMTExpectationData *e = g_new0(struct QMTExpectationData, 1);
+    e->compare = qmt_expect_ptr_impl(NULL);
+    e->expect_print = g_strdup_printf("expect_null()");
+    e->printer = qmt_print_ptr;
     return e;
 }
 
-QMTExpectationData qmt_expect_int(int value)
+struct QMTExpectationData *qmt_expect_int(int value)
 {
-    QMTExpectationData e;
-    e.compare.expected.data = g_malloc0(sizeof(value));
-    e.compare.expected.size = sizeof(value);
-    e.compare.function = qmt_compare_int;
-    e.compare.release = g_free;
+    struct QMTExpectationData *e = g_new0(struct QMTExpectationData, 1);
+    e->compare.expected.data = g_malloc0(sizeof(value));
+    e->compare.expected.size = sizeof(value);
+    e->compare.function = qmt_compare_int;
+    e->compare.release = g_free;
 
-    e.expect_print = g_strdup_printf("expect_int(%d)", value);
-    e.printer = qmt_print_int;
-    memcpy(e.compare.expected.data, &value, sizeof(value));
+    e->expect_print = g_strdup_printf("expect_int(%d)", value);
+    e->printer = qmt_print_int;
+    memcpy(e->compare.expected.data, &value, sizeof(value));
     return e;
 }
 

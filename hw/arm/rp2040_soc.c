@@ -34,25 +34,25 @@
 
 // #include "qapi/error.h"
 
-// static const uint32_t uart_addr[RP2040_SOC_NUMBER_OF_UARTS] = {
-//     0x40034000, 
-//     0x40038000
-// };
+static const uint32_t uart_addr[RP2040_SOC_NUMBER_OF_UARTS] = {
+    0x40034000, 
+    0x40038000
+};
 
-// static const uint32_t spi_addr[RP2040_SOC_NUMBER_OF_SPIS] = {
-//     0x4003c000,
-//     0x40040000
-// };
+static const uint32_t spi_addr[RP2040_SOC_NUMBER_OF_SPIS] = {
+    0x4003c000,
+    0x40040000
+};
 
-// static const int uart_irq[RP2040_SOC_NUMBER_OF_UARTS] = {
-//     20, 
-//     21
-// };
+static const int uart_irq[RP2040_SOC_NUMBER_OF_UARTS] = {
+    20, 
+    21
+};
 
-// static const int spi_irq[RP2040_SOC_NUMBER_OF_SPIS] = {
-//     18, 
-//     19
-// };
+static const int spi_irq[RP2040_SOC_NUMBER_OF_SPIS] = {
+    18, 
+    19
+};
 
 #define RP2040_SOC_CLOCKS_BASE      0x40008000
 #define RP2040_SOC_RESETS_BASE      0x4000c000
@@ -78,15 +78,15 @@ static void rp2040_soc_init(Object *obj)
     /* peripherals initialization */
     object_initialize_child(obj, "gpio", &s->gpio, TYPE_RP2040_GPIO);
 
-    // for (i = 0; i < RP2040_SOC_NUMBER_OF_UARTS; ++i)
-    // {
-    //     object_initialize_child(obj, "uart[*]", &s->uart[i], TYPE_PL011);
-    // }
+    for (i = 0; i < RP2040_SOC_NUMBER_OF_UARTS; ++i)
+    {
+        object_initialize_child(obj, "uart[*]", &s->uart[i], TYPE_PL011);
+    }
     
-    // for (i = 0; i < RP2040_SOC_NUMBER_OF_SPIS; ++i)
-    // {
-    //     object_initialize_child(obj, "spi[*]", &s->spi[i], TYPE_PL022);
-    // }
+    for (i = 0; i < RP2040_SOC_NUMBER_OF_SPIS; ++i)
+    {
+        object_initialize_child(obj, "spi[*]", &s->spi[i], TYPE_PL022);
+    }
 
     // object_initialize_child(obj, "resets", &s->resets, TYPE_RP2040_RESETS);
     // object_initialize_child(obj, "vreg", &s->vreg, TYPE_RP2040_VREG);
@@ -98,7 +98,7 @@ static void rp2040_soc_init(Object *obj)
     /* clocks initialization */
     // object_initialize_child(obj, "clocks", &s->clocks, TYPE_RP2040_CLOCKS);
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
-    // s->refclk = qdev_init_clock_in(DEVICE(s), "refclk", NULL, NULL, 0);
+    s->refclk = qdev_init_clock_in(DEVICE(s), "refclk", NULL, NULL, 0);
 
     // qdev_connect_clock_in(DEVICE(&s->ssi), "clock", s->sysclk);
     // // qdev_connect_clock_in(core, "cpuclk", s->sysclk);
@@ -112,7 +112,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     SysBusDevice *busdev;
     int i;
 
-    // MemoryRegion *system_memory = get_system_memory();
+    MemoryRegion *system_memory = get_system_memory();
 
 
     if (!clock_has_source(s->sysclk)) {
@@ -121,22 +121,18 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     }
 
     // /* TODO: hacks to be removed, clocks should be setted up correctly */
-    // clock_set_mul_div(s->refclk, 8, 1);
-    // clock_set_source(s->refclk, s->sysclk);
+    clock_set_mul_div(s->refclk, 8, 1);
+    clock_set_source(s->refclk, s->sysclk);
 
-    // /* Initialize boot rom */ 
-    // memory_region_init_rom(&s->rom, OBJECT(dev_soc), "RP2040.rom", 
-    //     RP2040_SOC_ROM_SIZE, &error_fatal);
-    // memory_region_add_subregion(system_memory, RP2040_SOC_ROM_BASE_ADDRESS, &s->rom);
+    /* Initialize boot rom */ 
+    memory_region_init_rom(&s->rom, OBJECT(dev_soc), "RP2040.rom", 
+        RP2040_SOC_ROM_SIZE, &error_fatal);
+    memory_region_add_subregion(system_memory, RP2040_SOC_ROM_BASE_ADDRESS, &s->rom);
 
-    // memory_region_init_ram(&s->sram, NULL, "RP2040.sram", 
-    //     RP2040_SOC_SRAM_SIZE, &error_fatal);
+    memory_region_init_ram(&s->sram, NULL, "RP2040.sram", 
+        RP2040_SOC_SRAM_SIZE, &error_fatal);
 
-    // memory_region_add_subregion(system_memory, RP2040_SOC_SRAM_BASE_ADDRESS, &s->sram);
-
-    // memory_region_init_rom(&s->qspi_flash, OBJECT(dev_soc), "RP2040.qspi_flash", RP2040_SOC_XIP_SIZE, &error_fatal);
-    // memory_region_add_subregion(system_memory, RP2040_SOC_XIP_BASE_ADDRESS, &s->qspi_flash);
-
+    memory_region_add_subregion(system_memory, RP2040_SOC_SRAM_BASE_ADDRESS, &s->sram);
 
     /* Initialize cores */
     for (i = 0; i < RP2040_SOC_NUMBER_OF_CORES; ++i)
@@ -153,28 +149,29 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->armv6m[i]), errp)) {
             return;
         }
+    }
 
-    //     for (int i = 0; i < RP2040_SOC_NUMBER_OF_UARTS; ++i) {
-    //         dev = DEVICE(&s->uart[i]);
-    //         qdev_prop_set_chr(dev, "chardev", serial_hd(i));
-    //         if (!sysbus_realize(SYS_BUS_DEVICE(&s->uart[i]), errp)) {
-    //             return;
-    //         }
-    //         busdev = SYS_BUS_DEVICE(dev);
-    //         sysbus_mmio_map(busdev, 0, uart_addr[i]);
-    //         sysbus_connect_irq(busdev, 0, qdev_get_gpio_in(core, uart_irq[i]));
-    //     }
+    /* UARTs realization */
+    for (int i = 0; i < RP2040_SOC_NUMBER_OF_UARTS; ++i) {
+        dev = DEVICE(&s->uart[i]);
+        qdev_prop_set_chr(dev, "chardev", serial_hd(i));
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->uart[i]), errp)) {
+            return;
+        }
+        busdev = SYS_BUS_DEVICE(dev);
+        sysbus_mmio_map(busdev, 0, uart_addr[i]);
+        sysbus_connect_irq(busdev, 0, qdev_get_gpio_in(core, uart_irq[i]));
+    }
 
-    //     /* attach spi controllers */
-    //     for (int i = 0; i < RP2040_SOC_NUMBER_OF_SPIS; ++i) {
-    //         dev = DEVICE(&s->spi[i]);
-    //         if (!sysbus_realize(SYS_BUS_DEVICE(&s->spi[i]), errp)) {
-    //             return;
-    //         }
-    //         busdev = SYS_BUS_DEVICE(dev);
-    //         sysbus_mmio_map(busdev, 0, spi_addr[i]);
-    //         sysbus_connect_irq(busdev, 0, qdev_get_gpio_in(core, spi_irq[i]));
-    //     }
+    /* SPIs realization */
+    for (int i = 0; i < RP2040_SOC_NUMBER_OF_SPIS; ++i) {
+        dev = DEVICE(&s->spi[i]);
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->spi[i]), errp)) {
+            return;
+        }
+        busdev = SYS_BUS_DEVICE(dev);
+        sysbus_mmio_map(busdev, 0, spi_addr[i]);
+        sysbus_connect_irq(busdev, 0, qdev_get_gpio_in(core, spi_irq[i]));
     }
 
     // /* ssi */ 
@@ -208,7 +205,8 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     // create_unimplemented_device("PSM",          0x40010000, 0x4000);
     
     // // create_unimplemented_device("IO_QSPI",      0x40018000, 0x4000);
-    /* gpio qspi */ 
+    
+    /* QSPI and XIP QSPI IO realization */ 
     dev = DEVICE(&s->gpio);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->gpio), errp)) {
         return;

@@ -45,7 +45,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040State, RP2040_SOC)
 
 #define RP2040_SOC_ROM_BASE_ADDRESS 0x00000000
-#define RP2040_SOC_ROM_SIZE (16 * 1024) // picoboot
+#define RP2040_SOC_ROM_SIZE (16 * 1024)
 
 #define RP2040_SOC_XIP_BASE_ADDRESS 0x10000000
 #define RP2040_SOC_XIP_SIZE (16 * 1024 * 1024)
@@ -64,8 +64,8 @@ struct RP2040State {
     /* ARMv7 is backward compatible with ARMv6 see (https://developer.arm.com/documentation/ddi0419/c/Application-Level-Architecture/Introduction/About-the-ARM-architecture-profiles?lang=en) */
     ARMv7MState armv6m[RP2040_SOC_NUMBER_OF_CORES];
 
-    // PL011State uart[RP2040_SOC_NUMBER_OF_UARTS];
-    // PL011State spi[RP2040_SOC_NUMBER_OF_SPIS];
+    PL011State uart[RP2040_SOC_NUMBER_OF_UARTS];
+    PL022State spi[RP2040_SOC_NUMBER_OF_SPIS];
     // RP2040ClocksState clocks;
     // RP2040XOSCState xosc;
     // RP2040ResetsState resets;
@@ -75,11 +75,11 @@ struct RP2040State {
     
     RP2040GpioState gpio;
 
-    // MemoryRegion rom;
-    // MemoryRegion sram;
+    MemoryRegion rom;
+    MemoryRegion sram;
 
     Clock *sysclk;
-    // Clock *refclk;
+    Clock *refclk;
 };
 
 #endif

@@ -265,57 +265,6 @@ static void test_aliased_access_gpio_qspi(RP2040GpioTestsFixture *fixture, gcons
     g_assert_cmphex(reg, ==, 0x00000000);
 }
 
-
-// static void test_invert_interrupt(RP2040GpioTestsFixture *fixture, gconstpointer data)
-// {
-//     qemu_irq irq_spy;
-
-//     /* Test Data */
-//     const RP2040TestGpioControl set_output_to_high = {
-//         .funcsel = 0x1f,
-//         .outover = 0x03,
-//         .oeover = 0x03,
-//         .inover = 0x00,
-//         .irqover = 0x00
-//     };
-
-//     const RP2040TestGpioControl set_output_to_low = {
-//         .funcsel = 0x1f,
-//         .outover = 0x03,
-//         .oeover = 0x02,
-//         .inover = 0x00,
-//         .irqover = 0x00
-//     };
-
-
-//     /* Perform GPIO test */
-//     for (int i = 0; i < RP2040_GPIO_PINS; ++i) 
-//     {
-//         irq_spy = qemu_allocate_irq(irq_spy_handler, NULL, i);
-//         QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(0));
-//         qdev_connect_gpio_out_named(DEVICE(&fixture->sut), "out", i, irq_spy);
-//         qmt_memory_write(0x04 + i * 0x08, &set_output_to_high, sizeof(RP2040TestGpioControl));
-
-//         QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(1));
-//         qmt_memory_write(0x04 + i * 0x08, &set_output_to_low, sizeof(RP2040TestGpioControl));
-
-//         qemu_free_irq(irq_spy);
-//     }
-
-//     /* Perform QSPI test */
-//     for (int i = 0; i < RP2040_GPIO_QSPI_PINS - 2; ++i) 
-//     {
-//         irq_spy = qemu_allocate_irq(irq_spy_handler, NULL, i);
-//         QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(0));
-//         qdev_connect_gpio_out_named(DEVICE(&fixture->sut), "qspi-out", i, irq_spy);
-//         qmt_memory_write(0x04 + i * 0x08 + 0x4000, &set_output_to_high, sizeof(RP2040TestGpioControl));
-
-//         QMT_EXPECT_CALL(irq_spy_handler, qmt_expect_null(), qmt_expect_int(i), qmt_expect_int(1));
-//         qmt_memory_write(0x04 + i * 0x08 + 0x4000, &set_output_to_low, sizeof(RP2040TestGpioControl));
-//         qemu_free_irq(irq_spy);
-//     }
-// }
-
 static void test_initialized_state(RP2040GpioTestsFixture *fixture, gconstpointer data)
 {
     uint32_t status;

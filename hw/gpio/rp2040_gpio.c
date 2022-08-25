@@ -120,8 +120,6 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value, const Rp204
 
                 switch (desc->control[array_index].outover)
                 {
-  
-
                     case 0x00:
                     {
                         // how to trigger periph
@@ -291,7 +289,6 @@ static void rp2040_gpio_unrealize(DeviceState *dev)
     /* Remove cyclic dependency between the device and it own memory subregions */
     memory_region_del_subregion(&state->container, &state->gpio_mmio);
     memory_region_del_subregion(&state->container, &state->qspi_mmio);
-    // object_unparent(OBJECT(&state->container));
 }
 
 static void rp2040_gpio_instance_init(Object *obj)
