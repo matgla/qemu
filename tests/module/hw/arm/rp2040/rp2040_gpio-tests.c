@@ -11,7 +11,7 @@
 
 #include "hw/gpio/rp2040_gpio.h"
 
-QMT_DEFINE_FAKE_VOID3(irq_spy_handler, void *, int, int);
+static QMT_DEFINE_FAKE_VOID3(irq_spy_handler, void *, int, int);
 
 typedef struct {
     RP2040GpioState sut;

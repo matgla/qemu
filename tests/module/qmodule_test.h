@@ -11,6 +11,19 @@
 /*#                   PRIVATE API                      #*/
 /*######################################################*/
 
+/*********************************************/
+/*           Forward declarations            */
+/*********************************************/
+
+struct QMTArgument;
+struct QMTCompare;
+struct QMTExpectation;
+struct QMTExpectationData;
+struct QMTExpectationPlace;
+struct QMTExpectations;
+struct QMTExpectationSet;
+
+
 #define _QMODULE_COUNT_ARGS_127( \
       _0,   _1,   _2,   _3,   _4,   _5,   _6,   _7,   _8,   _9, \
      _10,  _11,  _12,  _13,  _14,  _15,  _16,  _17,  _18,  _19, \
@@ -41,15 +54,47 @@
     19,  18,  17,  16,  15,  14,  13,  12,  11,  10, \
     9,   8,   7,   6,   5,   4,   3,   2,   1,   0)
 
+/**
+ * @brief Create expectation for function call
+ * 
+ * @param name - name of function to create expectation
+ * @param file - file where expectation is created
+ * @param line - line where expectation is created
+ * @param func - pointer to function to be tracked 
+ * @param n - number of function arguments verifiers
+ * @param ... - function arguments verifiers 
+ * @return struct QMTExpectation* 
+ */
+struct QMTExpectation *_qmt_expect_call(const char *name, const char *file, int line, void *func, int n, ...);
+
+/**
+ * @brief Searching expectations for given function 
+ * 
+ * @param function - pointer to function for which expectations are requested to be returned
+ * @return struct QMTExpectationSet* 
+ */
+struct QMTExpectationSet *_qmt_find_expectations_for_function(void *function);
+
+/**
+ * @brief Process call of expected function
+ * 
+ * @param name - name of function
+ * @param file - file where tracked function is created
+ * @param line - line where tracked function is created
+ * @param func - address of tracked function
+ * @param n - number of arguments from function call
+ * @param arguments - array of arguments from function call
+ */
+void _qmt_process_call(const char *name, const char *file, int line, void *func, int n, const struct QMTArgument *arguments);
+
 
 /*######################################################*/
 /*#                   PUBLIC API                       #*/
 /*######################################################*/
 
 /*********************************************/
-/*          TEST MEMORY MANAGEMENT           */
+/*          Test memory management           */
 /*********************************************/
-
 
 /**
  * @brief Getter for memory base for tests
@@ -77,7 +122,66 @@ void qmt_memory_write(const hwaddr addr, const void *buf, const hwaddr size);
 void qmt_memory_read(const hwaddr addr, void *buf, const hwaddr size); 
 
 /*********************************************/
-/*         TEST CASE MANAGEMENT              */
+/*              Expectations                 */
+/*********************************************/
+
+/**
+ * @brief Set number of expected calls for QMTExpectation
+ * 
+ * @param expectation - expectation to be modified
+ * @param expected_calls_count - expected number of calls
+ */
+void qmt_set_expect_calls_count(struct QMTExpectation *expectation, int expected_calls_count);
+
+/**
+ * @brief Set number of expected calls to any value
+ * 
+ * @param expectation - expectation to be modified
+ */
+void qmt_set_expect_calls_count_any(struct QMTExpectation *expectation);
+
+
+/**
+ * @brief MACRO to automatically fills arguments for _qmt_expect_call
+ * 
+ * @param func - function to be tracked
+ * @param ... - verifiers for function arguments
+ */
+#define QMT_EXPECT_CALL(func, ...) _qmt_expect_call(#func, __FILE__, __LINE__, func, QMODULE_COUNT_ARGS(__VA_ARGS__), __VA_ARGS__)
+
+
+/**
+ * @brief Expect any argument
+ * 
+ * @return struct QMTExpectationData* 
+ */
+struct QMTExpectationData *qmt_expect_any(void);
+
+/**
+ * @brief Expect argument to be pointer with value
+ * 
+ * @param - expected value of pointer
+ * @return struct QMTExpectationData* 
+ */
+struct QMTExpectationData *qmt_expect_ptr(void *ptr);
+
+/**
+ * @brief Expect argument to be pointer with null value
+ * 
+ * @return struct QMTExpectationData* 
+ */
+struct QMTExpectationData *qmt_expect_null(void);
+
+/**
+ * @brief Expect argument to be int with value
+ * 
+ * @param value - expected value of argument
+ * @return struct QMTExpectationData* 
+ */
+struct QMTExpectationData *qmt_expect_int(int value);
+
+/*********************************************/
+/*            Test case management           */
 /*********************************************/
 
 /**
@@ -109,86 +213,24 @@ void qmt_verify_and_release(void);
  */
 void qmt_verify_and_clear_expectations(void);
 
-#define QMT_EXPECT_CALL_ANY -1
-
-struct QMTExpectation;
-struct QMTCompare;
-struct QMTArgument;
-
-typedef char*(*QMTPrintCall)(const struct QMTArgument *argument);
-
-
-typedef struct {
-    const char *file;
-    int line;
-} QMTExpectationPlace;
-
-typedef struct QMTExpectation {
-    int matched_count;
-    int expected_count;
-    int places_count;
-    QMTExpectationPlace *places;
-    int argument_count;
-    struct QMTCompare *comparators;
-    char **expected_argument_print;
-} QMTExpectation;
-
-typedef struct QMTExpectationSet {
-    void *function;
-    int expectations_count; 
-    QMTExpectation *expectations;
-    int registered_call_count;
-    struct QMTRegisteredCall *registered_calls;
-    int arguments_count;
-    QMTPrintCall *printers; 
-    const char *name;
-} QMTExpectationSet;
-
-typedef struct QMTExpectations {
-    int size; 
-    QMTExpectationSet *sets;
-} QMTExpectations;
-
-
 typedef struct QMTArgument {
     int size; 
     void *data;
 } QMTArgument;
 
 
-QMTExpectations *qmt_get_expectations(void);
-QMTExpectationSet *qmt_find_expectations_for_function(void *function);
-
-QMTExpectation *qmt_expect_call(const char *name, const char *file, int line, void *func, int n, ...);
-void qmt_process_call(const char *name, const char *file, int line, void *func, int n, const struct QMTArgument *arguments);
-
-#define QMT_DEFINE_FAKE_VOID0(name) \
-    static void name(void) { \
-        QMTExpectationSet *expectation = qmt_find_expectations_for_function(&name); \
-        g_autofree char *s = NULL; \
-        s = g_strdup_printf("Unexpected call: " #name "\nExpectation not found!\n"); \
-        g_assertion_message(G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, s); \
-    }
-
-#define QMT_EXPECT_CALL(func, ...) qmt_expect_call(#func, __FILE__, __LINE__, func, QMODULE_COUNT_ARGS(__VA_ARGS__), __VA_ARGS__)
-
-/* Fake generator macros */
+/*********************************************/
+/*         Fake functions generators         */
+/*********************************************/
 
 #define QMT_DEFINE_FAKE_VOID3(name, t0, t1, t2) \
-    static void name(t0 a0, t1 a1, t2 a2) { \
+    void name(t0 a0, t1 a1, t2 a2) { \
         QMTArgument args[3] = { \
             {.size = sizeof(t0), .data = &a0}, \
             {.size = sizeof(t1), .data = &a1}, \
             {.size = sizeof(t2), .data = &a2}, \
         }; \
-        qmt_process_call(#name, __FILE__, __LINE__, &name, 3, args);\
+        _qmt_process_call(#name, __FILE__, __LINE__, &name, 3, args);\
     }  
-
-
-/* Expectations */ 
-struct QMTExpectationData *qmt_expect_any(void);
-struct QMTExpectationData *qmt_expect_ptr(void *);
-struct QMTExpectationData *qmt_expect_null(void);
-struct QMTExpectationData *qmt_expect_int(int value);
 
 #endif
