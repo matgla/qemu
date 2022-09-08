@@ -83,6 +83,7 @@ blobs = [
   'npcm7xx_bootrom.bin',
   'vof.bin',
   'vof-nvram.bin',
+  'raspi_pico_boot.bin',
 ]
 
 if get_option('install_blobs')

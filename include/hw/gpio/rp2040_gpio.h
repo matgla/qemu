@@ -22,9 +22,10 @@
  * THE SOFTWARE.
  */
 
-
 #ifndef RP2040_GPIO_H
 #define RP2040_GPIO_H
+
+#include <stdbool.h>
 
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
@@ -83,6 +84,11 @@ struct RP2040GpioState {
     MemoryRegion qspi_mmio;
     qemu_irq     irq;
 
+    bool qspi_in_reset;
+    bool qspi_reset_done;
+    bool gpio_in_reset;
+    bool gpio_reset_done;
+
     RP2040GpioStatus  gpio_status[RP2040_GPIO_PINS];
     RP2040GpioControl gpio_ctrl[RP2040_GPIO_PINS];
     qemu_irq          gpio_out[RP2040_GPIO_PINS];
@@ -93,5 +99,12 @@ struct RP2040GpioState {
     qemu_irq          qspi_sclk;
     qemu_irq          qspi_out[RP2040_GPIO_QSPI_PINS - 2];
 };
+
+void rp2040_gpio_reset(RP2040GpioState *state, bool reset_state);
+void rp2040_qspi_io_reset(RP2040GpioState *state, bool reset_state);
+int rp2040_gpio_get_reset_state(RP2040GpioState *state);
+int rp2040_qspi_io_get_reset_state(RP2040GpioState *state);
+int rp2040_gpio_get_reset_done(RP2040GpioState *state);
+int rp2040_qspi_io_get_reset_done(RP2040GpioState *state);
 
 #endif /* RP2040_GPIO_H */

@@ -1,5 +1,8 @@
 tests = \
-  (config_all_devices.has_key('CONFIG_RASPI_PICO') ? ['rp2040_gpio-tests'] : [])
+  (config_all_devices.has_key('CONFIG_RASPI_PICO') ? [
+    'rp2040_gpio-tests',
+    'rp2040_sio-tests'
+    ] : [])
 
 test_env = environment()
 test_env.set('G_TEST_SRCDIR', meson.current_source_dir())

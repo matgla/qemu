@@ -1,5 +1,5 @@
 /*
- * Raspberry RP2040 SoC
+ * RP2040 Pads
  *
  * Copyright (c) 2022 Mateusz Stadnik <matgla@live.com>
  *
@@ -22,60 +22,39 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_ARM_RP2040_SOC_H
-#define HW_ARM_RP2040_SOC_H
+#ifndef RP2040_PADS_H
+#define RP2040_PADS_H
 
 #include "qemu/osdep.h"
+#include "exec/memory.h"
 #include "hw/sysbus.h"
-#include "hw/arm/armv7m.h"
-#include "hw/char/pl011.h"
-#include "hw/ssi/pl022.h"
-#include "hw/clock.h"
-#include "qemu/units.h"
 #include "qom/object.h"
-#include "sysemu/sysemu.h"
 
-#include "hw/gpio/rp2040_gpio.h"
-#include "hw/gpio/rp2040_sio.h"
-#include "hw/misc/rp2040_pads.h"
-#include "hw/misc/rp2040_resets.h"
+#define TYPE_RP2040_PADS "rp2040.pads"
+OBJECT_DECLARE_SIMPLE_TYPE(RP2040PadsState, RP2040_PADS)
 
-#define TYPE_RP2040_SOC "rp2040"
-OBJECT_DECLARE_SIMPLE_TYPE(RP2040State, RP2040_SOC)
+typedef struct RP2040GpioState RP2040GpioState;
 
-#define RP2040_ROM_SIZE (16 * KiB)
-
-#define RP2040_SOC_NUMBER_OF_CORES 2
-#define RP2040_SOC_NUMBER_OF_SPIS 2
-#define RP2040_SOC_NUMBER_OF_UARTS 2
-
-struct RP2040State {
-    /*< private >*/
+struct RP2040PadsState {
     SysBusDevice parent_obj;
 
-    /* ARMv7 is backward compatible with ARMv6 */
-    ARMv7MState armv6m[RP2040_SOC_NUMBER_OF_CORES];
+    MemoryRegion mmio;
+
+    bool pads_qspi_in_reset;
+    bool pads_qspi_reset_done;
+    bool pads_in_reset;
+    bool pads_reset_done;
 
 
-    RP2040ResetsState resets;
-    RP2040GpioState gpio;
-    RP2040PadsState pads;
-
-    /* each core has own SIO register */
-    RP2040SioState sio[RP2040_SOC_NUMBER_OF_CORES];
-
-    MemoryRegion *system_memory;
-    MemoryRegion container;
-    MemoryRegion core_container[RP2040_SOC_NUMBER_OF_CORES];
-    MemoryRegion core_container_alias[RP2040_SOC_NUMBER_OF_CORES - 1];
-
-    MemoryRegion rom;
-    MemoryRegion sram03;
-    MemoryRegion sram4;
-    MemoryRegion sram5;
-
-    Clock *sysclk;
-    Clock *refclk;
+    RP2040GpioState *gpio;
 };
 
-#endif
+void rp2040_pads_reset(RP2040PadsState *state, bool reset_state);
+void rp2040_qspi_pads_reset(RP2040PadsState *state, bool reset_state);
+int rp2040_pads_get_reset_state(RP2040PadsState *state);
+int rp2040_qspi_pads_get_reset_state(RP2040PadsState *state);
+int rp2040_pads_get_reset_done(RP2040PadsState *state);
+int rp2040_qspi_pads_get_reset_done(RP2040PadsState *state);
+
+
+#endif /* RP2040_PADS_H */
