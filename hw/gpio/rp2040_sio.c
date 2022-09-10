@@ -105,8 +105,9 @@
 
 static void rp2040_sio_instance_init(Object *obj)
 {
-
 }
+
+static uint32_t spinlock[32];
 
 static uint64_t rp2040_sio_read(void *opaque, hwaddr offset, unsigned int size)
 {
@@ -134,12 +135,48 @@ static uint64_t rp2040_sio_read(void *opaque, hwaddr offset, unsigned int size)
                 return 0;
             }
             return fifo32_pop(&state->fifo_rx);
+        case RP2040_SIO_DIV_CSR:
+            return state->div_csr.value;
+        case RP2040_SIO_DIV_QUOTIENT:
+            state->div_csr.dirty = 0;
+            return state->quotient;
+        case RP2040_SIO_DIV_REMAINDER:
+            return state->remainder;
+
+    }
+
+    if (offset >= RP2040_SIO_SPINLOCK0 && offset <= RP2040_SIO_SPINLOCK31) {
+        offset -= 0x100;
+        offset /= 4;
+        if (spinlock[offset] == 0) {
+            spinlock[offset] = 1;
+            return 1;
+        }
+        return 0;
     }
 
     qemu_log_mask(LOG_UNIMP, "%s: unimplemented register: 0x%03lx\n", __func__,
         offset);
 
     return 0;
+}
+
+static void rp2040_sio_calculate_udiv(RP2040SioState *state) 
+{
+    if (state->divisor != 0) {
+        state->quotient = state->dividend / state->divisor;
+        state->remainder = state->dividend % state->divisor;
+    }
+    state->div_csr.dirty = 1;
+}
+
+static void rp2040_sio_calculate_sdiv(RP2040SioState *state) 
+{
+    if (state->divisor != 0) {
+        state->quotient = (int)state->dividend / (int)state->divisor;
+        state->quotient = (int)state->dividend % (int)state->divisor;
+    }
+    state->div_csr.dirty = 1;
 }
 
 static void rp2040_sio_write(void *opaque, hwaddr offset,
@@ -160,6 +197,37 @@ static void rp2040_sio_write(void *opaque, hwaddr offset,
             state->fifo_st.roe = false;
             state->fifo_st.wof = false;
             return;
+        case RP2040_SIO_DIV_UDIVIDEND:
+            state->dividend = value;
+            rp2040_sio_calculate_udiv(state);
+            return;
+        case RP2040_SIO_DIV_UDIVISOR:
+            state->divisor = value;
+            rp2040_sio_calculate_udiv(state);
+            return;
+        case RP2040_SIO_DIV_SDIVIDEND:
+            state->dividend = value;
+            rp2040_sio_calculate_sdiv(state);
+            return;
+        case RP2040_SIO_DIV_SDIVISOR:
+            state->divisor = value;
+            rp2040_sio_calculate_sdiv(state);
+            return;
+        case RP2040_SIO_DIV_QUOTIENT:
+            state->quotient = value;
+            state->div_csr.dirty = 1;
+            return;
+        case RP2040_SIO_DIV_REMAINDER:
+            state->remainder = value;
+            state->div_csr.dirty = 1;
+            return;
+    }
+
+    if (offset >= RP2040_SIO_SPINLOCK0 && offset <= RP2040_SIO_SPINLOCK31) {
+        offset -= 0x100;
+        offset /= 4;
+        spinlock[offset] = 0;
+        return;
     }
 
     qemu_log_mask(LOG_UNIMP, "%s: unimplemented register: 0x%03lx\n", __func__,
@@ -191,6 +259,8 @@ static void rp2040_sio_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(sysbus_dev, &state->mmio);
 
     fifo32_create(&state->fifo_rx, RP2040_SIO_INTERCORE_FIFO_SIZE);
+    state->div_csr.ready = 1;
+    state->div_csr.dirty = 0;
 }
 
 static Property rp2040_sio_properties[] = {

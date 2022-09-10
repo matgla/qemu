@@ -156,6 +156,12 @@ static void rp2040_soc_init(Object *obj)
     object_initialize_child(obj, "xip", &s->xip, TYPE_RP2040_XIP);
     object_initialize_child(obj, "xosc", &s->xosc, TYPE_RP2040_XOSC);
     object_initialize_child(obj, "clocks", &s->clocks, TYPE_RP2040_CLOCKS);
+    object_initialize_child(obj, "pll_sys", &s->pll_sys, TYPE_RP2040_PLL);
+    object_initialize_child(obj, "pll_usb", &s->pll_usb, TYPE_RP2040_PLL);
+    object_initialize_child(obj, "uart0", &s->uart0, TYPE_RP2040_UART);
+    qdev_prop_set_chr(DEVICE(&s->uart0.pl011), "chardev", serial_hd(0));
+    object_initialize_child(obj, "uart1", &s->uart1, TYPE_RP2040_UART);
+    qdev_prop_set_chr(DEVICE(&s->uart1.pl011), "chardev", serial_hd(1));
 
     s->resets.gpio = &s->gpio;
     s->resets.pads = &s->pads;
@@ -271,16 +277,30 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->xosc), 0, RP2040_XOSC_BASE);
 
-    create_unimplemented_device("PLL SYS",
-        RP2040_PLL_SYS_BASE, 0x4000);
-    create_unimplemented_device("PLL USB",
-        RP2040_PLL_USB_BASE, 0x4000);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->pll_sys), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->pll_sys), 0, RP2040_PLL_SYS_BASE);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->pll_usb), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->pll_usb), 0, RP2040_PLL_USB_BASE);
+
     create_unimplemented_device("BUSCTRL",
         RP2040_BUSCTRL_BASE, 0x4000);
-    create_unimplemented_device("UART0",
-        RP2040_UART0_BASE, 0x4000);
-    create_unimplemented_device("UART1",
-        RP2040_UART1_BASE, 0x4000);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->uart0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->uart0), 0, RP2040_UART0_BASE);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->uart1), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->uart1), 0, RP2040_UART1_BASE);
+
+
     create_unimplemented_device("SPI0",
         RP2040_SPI0_BASE, 0x4000);
     create_unimplemented_device("SPI1",

@@ -146,4 +146,5 @@ softmmu_ss.add(when: 'CONFIG_RP2040_SOC', if_true: files(
   'rp2040_utils.c',
   'rp2040_xip.c',
   'rp2040_xosc.c',
+  'rp2040_pll.c',
 ))

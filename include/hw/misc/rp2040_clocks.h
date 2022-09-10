@@ -33,10 +33,37 @@
 #define TYPE_RP2040_CLOCKS "rp2040.clocks"
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040ClocksState, RP2040_CLOCKS)
 
+union RP2040ClockRefCtrl {
+    struct {
+        uint32_t src:2;
+        uint32_t _reserved1:3;
+        uint32_t auxsrc:2;
+        uint32_t _reserved2:25;
+    };
+    uint32_t value;
+};
+
+typedef union RP2040ClockRefCtrl RP2040ClockRefCtrl;
+
+union RP2040ClockSysCtrl {
+    struct {
+        uint32_t src:1;
+        uint32_t _reserved1:4;
+        uint32_t auxsrc:3;
+        uint32_t _reserved2:24;
+    };
+    uint32_t value;
+};
+
+typedef union RP2040ClockSysCtrl RP2040ClockSysCtrl;
+
 struct RP2040ClocksState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
+
+    RP2040ClockSysCtrl sysctrl;
+    RP2040ClockRefCtrl refctrl;
 
     uint32_t selected_clk_ref;
     uint32_t selected_clk_sys;

@@ -46,8 +46,12 @@ static uint64_t rp2040_clocks_read(void *opaque, hwaddr offset, unsigned int siz
     RP2040ClocksState *state = RP2040_CLOCKS(opaque);
 
     switch (offset) {
+        case RP2040_CLOCKS_CLK_REF_CTRL:
+            return state->refctrl.value;
         case RP2040_CLOCKS_CLK_REF_SELECTED:
             return state->selected_clk_ref;
+        case RP2040_CLOCKS_CLK_SYS_CTRL:
+            return state->sysctrl.value;
         case RP2040_CLOCKS_CLK_SYS_SELECTED:
             return state->selected_clk_sys;
     }
@@ -67,18 +71,16 @@ static void rp2040_clocks_write(void *opaque, hwaddr offset,
     offset &= 0x0fff;
     switch (offset) {
         case RP2040_CLOCKS_CLK_REF_CTRL:
-            rp2040_write_to_register(access, &state->selected_clk_ref,
-                                     value & 0x3);
-            if (state->selected_clk_ref == 0) {
-                state->selected_clk_ref = 1;
-            }
+            fprintf(stderr, "Value was %d, %d\n", state->refctrl.src, state->refctrl.auxsrc);
+
+            rp2040_write_to_register(access, &state->refctrl.value, value);
+            fprintf(stderr, "Value is %d, %d\n", state->refctrl.src, state->refctrl.auxsrc);
+            state->selected_clk_ref = 1 << state->refctrl.src;
             return;
         case RP2040_CLOCKS_CLK_SYS_CTRL:
-            rp2040_write_to_register(access, &state->selected_clk_sys,
-                                     value & 0x1);
-            if (state->selected_clk_sys == 0) {
-                state->selected_clk_sys = 1;
-            }
+            rp2040_write_to_register(access, &state->sysctrl.value, value);
+            state->selected_clk_sys = 1 << state->sysctrl.src;
+
             return;
 
     }
@@ -102,8 +104,10 @@ static void rp2040_clocks_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(state), &state->mmio);
     memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_clocks_io, state,
         "clocks_mmio", RP2040_CLOCKS_SIZE);
-    state->selected_clk_ref = 0x0;
-    state->selected_clk_sys = 0x0;
+    state->refctrl.src = 0;
+    state->sysctrl.src = 0;
+    state->selected_clk_ref = 1;
+    state->selected_clk_sys = 1;
 }
 
 static void rp2040_clocks_class_init(ObjectClass *klass, void *data)

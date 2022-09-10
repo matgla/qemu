@@ -51,6 +51,17 @@ union RP2040SioFifoSt {
 
 typedef union RP2040SioFifoSt RP2040SioFifoSt;
 
+union RP2040SioDivCsr {
+    struct {
+        uint32_t ready:1;
+        uint32_t dirty:1;
+        uint32_t _reserved:30;
+    };
+    uint32_t value;
+};  
+
+typedef union RP2040SioDivCsr RP2040SioDivCsr;
+
 struct RP2040SioState {
     SysBusDevice parent_obj;
 
@@ -62,6 +73,12 @@ struct RP2040SioState {
     RP2040SioFifoSt fifo_st;
     Fifo32 fifo_rx;
     Fifo32 *fifo_tx;
+
+    RP2040SioDivCsr div_csr;
+    uint32_t dividend;
+    uint32_t divisor;
+    uint32_t quotient;
+    uint32_t remainder;
 };
 
 #endif /* RP2040_SIO_H */
