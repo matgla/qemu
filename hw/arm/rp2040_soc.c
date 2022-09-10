@@ -37,7 +37,6 @@
 #define RP2040_ROM_BASE_ADDRESS 0x00000000
 
 #define RP2040_XIP_BASE_ADDRESS 0x10000000
-#define RP2040_XIP_SIZE (16 * MiB)
 
 #define RP2040_SRAM03_SIZE 0x40000
 #define RP2040_SRAM4_SIZE 0x1000
@@ -144,24 +143,35 @@ static void rp2040_soc_init(Object *obj)
 
         object_initialize_child(obj, sio_name, &s->sio[i], TYPE_RP2040_SIO);
         qdev_prop_set_uint32(DEVICE(&s->sio[i]), "cpuid", i);
+
+        s->sio[i].gpio = &s->gpio;
     }
 
     /* peripherals initialization */
     object_initialize_child(obj, "pads", &s->pads, TYPE_RP2040_PADS);
     object_initialize_child(obj, "gpio", &s->gpio, TYPE_RP2040_GPIO);
     object_initialize_child(obj, "resets", &s->resets, TYPE_RP2040_RESETS);
+    object_initialize_child(obj, "timer", &s->timer, TYPE_RP2040_TIMER);
+    object_initialize_child(obj, "ssi", &s->ssi, TYPE_RP2040_SSI);
+    object_initialize_child(obj, "xip", &s->xip, TYPE_RP2040_XIP);
+    object_initialize_child(obj, "xosc", &s->xosc, TYPE_RP2040_XOSC);
+    object_initialize_child(obj, "clocks", &s->clocks, TYPE_RP2040_CLOCKS);
 
     s->resets.gpio = &s->gpio;
     s->resets.pads = &s->pads;
+    s->resets.timer = &s->timer;
 
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
     s->refclk = qdev_init_clock_in(DEVICE(s), "refclk", NULL, NULL, 0);
+
+
 }
 
 static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
 {
     RP2040State *s = RP2040_SOC(dev_soc);
     int i;
+    qemu_irq cs_line_gpio;
 
     if (!clock_has_source(s->sysclk)) {
         error_setg(errp, "System clock not wired to RP2040 SoC");
@@ -206,24 +216,37 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     memory_region_add_subregion(&s->container, RP2040_SRAM5_BASE,
         &s->sram5);
 
-    create_unimplemented_device("XIP", RP2040_XIP_BASE, 16 * 1024 * 1024);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->xip), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->xip), 0, RP2040_XIP_BASE);
+
     create_unimplemented_device("XIP NOALLOC", RP2040_XIP_NOALLOC_BASE,
         0x01000000);
     create_unimplemented_device("XIP NOCACHE", RP2040_XIP_NOCACHE_BASE,
         0x01000000);
     create_unimplemented_device("XIP NOCACHE", RP2040_XIP_NOCACHE_NOALLOC_BASE,
         0x01000000);
-    create_unimplemented_device("XIP CTRL", RP2040_XIP_CTRL_BASE, 0x01000000);
+    create_unimplemented_device("XIP CTRL", RP2040_XIP_CTRL_BASE, 0x4000);
     create_unimplemented_device("XIP SRAM", RP2040_XIP_SRAM_BASE, 0x4000);
-    create_unimplemented_device("XIP SRAM", RP2040_XIP_SSI_BASE, 0x4000);
-    create_unimplemented_device("XIP SRAM", RP2040_XIP_SSI_BASE, 0x4000);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ssi), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ssi), 0, RP2040_XIP_SSI_BASE);
+
     create_unimplemented_device("SRAM0 BASE", RP2040_SRAM0_BASE, 0x10000);
     create_unimplemented_device("SRAM1 BASE", RP2040_SRAM1_BASE, 0x10000);
     create_unimplemented_device("SRAM2 BASE", RP2040_SRAM2_BASE, 0x10000);
     create_unimplemented_device("SRAM3 BASE", RP2040_SRAM3_BASE, 0x10000);
     create_unimplemented_device("SYSINFO", RP2040_SYSINFO_BASE, 0x4000);
     create_unimplemented_device("SYSCFG", RP2040_SYSCFG_BASE, 0x4000);
-    create_unimplemented_device("CLOCKS", RP2040_CLOCKS_BASE, 0x4000);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->clocks), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->clocks), 0, RP2040_CLOCKS_BASE);
+
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->resets), errp)) {
         return;
@@ -241,9 +264,13 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->pads), 0, RP2040_PADS_BANK0_BASE);
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->pads), 1, RP2040_PADS_QSPI_BASE);
 
-    create_unimplemented_device("XOSC",
-        RP2040_XOSC_BASE, 0x4000);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->xosc), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->xosc), 0, RP2040_XOSC_BASE);
+
     create_unimplemented_device("PLL SYS",
         RP2040_PLL_SYS_BASE, 0x4000);
     create_unimplemented_device("PLL USB",
@@ -266,8 +293,12 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         RP2040_ADC_BASE, 0x4000);
     create_unimplemented_device("PWM",
         RP2040_PWM_BASE, 0x4000);
-    create_unimplemented_device("TIMER",
-        RP2040_TIMER_BASE, 0x4000);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->timer), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->timer), 0, RP2040_TIMER_BASE);
+
     create_unimplemented_device("WATCHDOG",
         RP2040_WATCHDOG_BASE, 0x4000);
     create_unimplemented_device("RTC",
@@ -331,6 +362,10 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     /* Connect intercore FIFOs */
     s->sio[0].fifo_tx = &s->sio[1].fifo_rx;
     s->sio[1].fifo_tx = &s->sio[0].fifo_rx;
+
+    cs_line_gpio = qdev_get_gpio_in_named(DEVICE(&s->gpio), "qspi-cs-in", 0);
+    qdev_connect_gpio_out_named(DEVICE(&s->ssi), "cs", 0, cs_line_gpio);
+
 }
 
 static Property rp2040_soc_properties[] = {

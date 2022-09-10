@@ -26,15 +26,18 @@
 
 RP2040AccessType rp2040_get_access_type(const hwaddr addr)
 {
-    if ((addr & 0x3000) == 0x0000) {
-        return RP2040_NORMAL_ACCESS;
-    } else if (addr & 0x1000) {
-        return RP2040_XOR_ON_WRITE;
-    } else if (addr & 0x2000) {
-        return RP2040_SET_ON_WRITE;
+    const hwaddr op = addr >> 12;
+    switch (op) {
+        case 0x0:
+            return RP2040_NORMAL_ACCESS;
+        case 0x1:
+            return RP2040_XOR_ON_WRITE;
+        case 0x2:
+            return RP2040_SET_ON_WRITE;
+        case 0x3:
+            return RP2040_CLEAR_ON_WRITE;
     }
-
-    return RP2040_CLEAN_ON_WRITE;
+    return RP2040_NORMAL_ACCESS;
 }
 
 void rp2040_write_to_register(RP2040AccessType type, uint32_t *reg,
@@ -50,7 +53,7 @@ void rp2040_write_to_register(RP2040AccessType type, uint32_t *reg,
     case RP2040_SET_ON_WRITE:
         *reg |= value;
         break;
-    case RP2040_CLEAN_ON_WRITE:
+    case RP2040_CLEAR_ON_WRITE:
         *reg &= ~(value);
         break;
     }

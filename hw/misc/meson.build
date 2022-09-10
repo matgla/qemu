@@ -140,7 +140,10 @@ specific_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa_ec.c'))
 softmmu_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
 
 softmmu_ss.add(when: 'CONFIG_RP2040_SOC', if_true: files(
+  'rp2040_clocks.c',
   'rp2040_pads.c',
   'rp2040_resets.c',
-  'rp2040_utils.c'
+  'rp2040_utils.c',
+  'rp2040_xip.c',
+  'rp2040_xosc.c',
 ))

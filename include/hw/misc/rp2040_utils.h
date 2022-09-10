@@ -33,7 +33,7 @@ typedef enum {
     RP2040_NORMAL_ACCESS,
     RP2040_XOR_ON_WRITE,
     RP2040_SET_ON_WRITE,
-    RP2040_CLEAN_ON_WRITE,
+    RP2040_CLEAR_ON_WRITE,
 } RP2040AccessType;
 
 RP2040AccessType rp2040_get_access_type(const hwaddr addr);

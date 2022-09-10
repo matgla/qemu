@@ -95,9 +95,7 @@ struct RP2040GpioState {
 
     RP2040GpioStatus  qspi_status[RP2040_GPIO_QSPI_PINS];
     RP2040GpioControl qspi_ctrl[RP2040_GPIO_QSPI_PINS];
-    qemu_irq          qspi_cs;
-    qemu_irq          qspi_sclk;
-    qemu_irq          qspi_out[RP2040_GPIO_QSPI_PINS - 2];
+    qemu_irq          qspi_out[RP2040_GPIO_QSPI_PINS];
 };
 
 void rp2040_gpio_reset(RP2040GpioState *state, bool reset_state);

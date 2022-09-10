@@ -1,5 +1,5 @@
 /*
- * RP2040 Timer
+ * RP2040 CLOCKS
  *
  * Copyright (c) 2022 Mateusz Stadnik <matgla@live.com>
  *
@@ -22,31 +22,24 @@
  * THE SOFTWARE.
  */
 
-#ifndef RP2040_TIMER_H
-#define RP2040_TIMER_H
-
-#include <stdint.h>
+#ifndef RP2040_CLOCKS_H
+#define RP2040_CLOCKS_H
 
 #include "qemu/osdep.h"
 #include "exec/memory.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
-#define TYPE_RP2040_TIMER "rp2040.timer"
+#define TYPE_RP2040_CLOCKS "rp2040.clocks"
+OBJECT_DECLARE_SIMPLE_TYPE(RP2040ClocksState, RP2040_CLOCKS)
 
-OBJECT_DECLARE_SIMPLE_TYPE(RP2040TimerState, RP2040_TIMER)
-
-struct RP2040TimerState {
+struct RP2040ClocksState {
     SysBusDevice parent_obj;
 
-    bool in_reset;
-    bool reset_done;
-
     MemoryRegion mmio;
+
+    uint32_t selected_clk_ref;
+    uint32_t selected_clk_sys;
 };
 
-void rp2040_timer_reset(RP2040TimerState *state, bool reset_state);
-int rp2040_timer_get_reset_state(RP2040TimerState *state);
-int rp2040_timer_get_reset_done(RP2040TimerState *state);
-
-#endif /* RP2040_TIMER_H */
+#endif /* RP2040_CLOCKS_H */

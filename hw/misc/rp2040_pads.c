@@ -30,7 +30,7 @@
 #include "hw/gpio/rp2040_gpio.h"
 
 
-#define RP2040_PADS_REGISTER_SIZE 0x8000
+#define RP2040_PADS_REGISTER_SIZE 0x4000
 
 static void rp2040_pads_instance_init(Object *obj)
 {
@@ -49,7 +49,23 @@ static uint64_t rp2040_pads_read(void *opaque, hwaddr offset, unsigned int size)
 
 
 static void rp2040_pads_write(void *opaque, hwaddr offset,
-                                uint64_t value, unsigned int size)
+                              uint64_t value, unsigned int size)
+{
+    qemu_log_mask(LOG_UNIMP, "%s: unimplemented register: 0x%03lx\n", __func__,
+                  offset);
+}
+
+static uint64_t rp2040_qspi_pads_read(void *opaque, hwaddr offset,
+                                      unsigned int size)
+{
+    qemu_log_mask(LOG_UNIMP, "%s: unimplemented register: 0x%03lx\n", __func__,
+                  offset);
+
+    return 0;
+}
+
+static void rp2040_qspi_pads_write(void *opaque, hwaddr offset,
+                                   uint64_t value, unsigned int size)
 {
     qemu_log_mask(LOG_UNIMP, "%s: unimplemented register: 0x%03lx\n", __func__,
                   offset);
@@ -63,12 +79,23 @@ static const MemoryRegionOps rp2040_pads_io = {
     .impl.max_access_size = 4,
 };
 
+static const MemoryRegionOps rp2040_qspi_pads_io = {
+    .read = rp2040_qspi_pads_read,
+    .write = rp2040_qspi_pads_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+};
+
 static void rp2040_pads_realize(DeviceState *dev, Error **errp)
 {
     RP2040PadsState *state = RP2040_PADS(dev);
-    sysbus_init_mmio(SYS_BUS_DEVICE(state), &state->mmio);
-    memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_pads_io, state,
-        "mmio", RP2040_PADS_REGISTER_SIZE);
+    sysbus_init_mmio(SYS_BUS_DEVICE(state), &state->gpio_mmio);
+    memory_region_init_io(&state->gpio_mmio, OBJECT(dev), &rp2040_pads_io, state,
+        "gpio_mmio", RP2040_PADS_REGISTER_SIZE);
+    sysbus_init_mmio(SYS_BUS_DEVICE(state), &state->qspi_mmio);
+    memory_region_init_io(&state->qspi_mmio, OBJECT(dev), &rp2040_qspi_pads_io, state,
+        "qspi_mmio", RP2040_PADS_REGISTER_SIZE);
 }
 
 static void rp2040_pads_class_init(ObjectClass *klass, void *data)
@@ -96,16 +123,13 @@ type_init(rp2040_pads_register_types);
 
 void rp2040_pads_reset(RP2040PadsState *state, bool reset_state)
 {
-    fprintf(stderr, "PADS reset with state: %d\n", reset_state);
-    state->pads_reset_done = state->pads_in_reset == 1 && reset_state == 0;
+    state->pads_reset_done = !reset_state;
     state->pads_in_reset = reset_state;
 }
 
 void rp2040_qspi_pads_reset(RP2040PadsState *state, bool reset_state)
 {
-    fprintf(stderr, "PADS QSPI reset with state: %d\n", reset_state);
-    state->pads_qspi_reset_done = state->pads_qspi_in_reset == 1
-        && reset_state == 0;
+    state->pads_qspi_reset_done = !reset_state;
     state->pads_qspi_in_reset = reset_state;
 }
 

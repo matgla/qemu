@@ -64,6 +64,19 @@ static uint32_t rp2040_process_gpio_read(hwaddr offset,
     return 0;
 }
 
+static void rp2040_set_gpio_state(RP2040GpioStatus *status, qemu_irq irq,
+                                  int value)
+{
+    status->outtopad = value;
+    status->irqtoproc = value;
+    status->irqfrompad = value;
+    status->intoperi = value;
+    status->infrompad = value;
+    status->outtopad = value;
+
+    qemu_set_irq(irq, value);
+}
+
 static void rp2040_process_gpio_write(hwaddr offset, uint32_t value,
     const Rp2040GpioRegisterDesc *desc, const char *name)
 {
@@ -72,7 +85,6 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value,
     }
     RP2040AccessType access = rp2040_get_access_type(offset);
     offset = offset & 0x0fff;
-
     /* Process status & control registers */
     if (offset <= desc->state_and_control_end) {
         const hwaddr index = offset >> 2;
@@ -84,10 +96,8 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value,
             return;
         } else {
             const hwaddr array_index = index >> 1;
-
             rp2040_write_to_register(access,
                 &desc->control[array_index]._value, value);
-
             if (desc->control[array_index].oeover == 0x03) {
                 desc->status[array_index].oetopad = 1;
 
@@ -97,31 +107,20 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value,
                 desc->status[array_index].infrompad = 0;
                 desc->status[array_index].outtopad = 0;
 
-                switch (desc->control[array_index].outover) {
-                case 0x00:
-                    qemu_log_mask(LOG_UNIMP,
-                        "%s: outover: 0x00 not supported yet\n", __func__);
-                    return;
-                case 0x01:
-                    qemu_log_mask(LOG_UNIMP,
-                        "%s: outover: 0x01 not supported yet\n", __func__);
-                    return;
-                case 0x02:
-                    desc->status[array_index].outtopad = 0;
-                    qemu_set_irq(desc->irq[array_index], 0);
-                    return;
-                case 0x03:
-                    desc->status[array_index].irqtoproc = 1;
-                    desc->status[array_index].irqfrompad = 1;
-                    desc->status[array_index].intoperi = 1;
-                    desc->status[array_index].infrompad = 1;
-                    desc->status[array_index].outtopad = 1;
-                    qemu_set_irq(desc->irq[array_index], 1);
-                    return;
-                }
             } else {
                 desc->status[array_index].oetopad = 0;
             }
+
+            switch (desc->control[array_index].outover) {
+                case 0x02:
+                    rp2040_set_gpio_state(&desc->status[array_index],
+                        desc->irq[array_index], false);
+                    return;
+                case 0x03:
+                    rp2040_set_gpio_state(&desc->status[array_index],
+                        desc->irq[array_index], true);
+                    return;
+                }
             return;
         }
     }
@@ -209,10 +208,35 @@ static const MemoryRegionOps rp2040_gpio_io = {
 
 static void rp2040_gpio_set(void *opaque, int line, int value)
 {
+    fprintf(stderr, "Set gpio: %d\n", line);
+    // rp2040_set_gpio_state
 }
 
 static void rp2040_gpio_qspi_set(void *opaque, int line, int value)
 {
+    fprintf(stderr, "Set qspi gpio: %d\n", line);
+    // rp2040_set_gpio_state
+}
+
+static void rp2040_gpio_cs_qspi_set(void *opaque, int line, int value)
+{
+    RP2040GpioState *state = RP2040_GPIO(opaque);
+    /* This comes from periph, this means that has no effect if outover is 1 */
+    state->qspi_status[1].outfromperi = value;
+
+    if (state->qspi_ctrl[1].outover == 0x00) {
+        qemu_set_irq(state->qspi_out[1], !!value);
+    } else if (state->qspi_ctrl[1].outover == 0x01) {
+        qemu_set_irq(state->qspi_out[1], !!!value);
+    }
+
+    // rp2040_set_gpio_state(&state->qspi_status[1], state->qspi_out[1], value);
+}
+
+static void rp2040_gpio_sclk_qspi_set(void *opaque, int line, int value)
+{
+    fprintf(stderr, "Set sclk gpio: %d\n", line);
+    // rp2040_set_gpio_state
 }
 
 static void rp2040_gpio_realize(DeviceState *dev, Error **errp)
@@ -240,12 +264,16 @@ static void rp2040_gpio_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(&state->container, 0x4000, &state->qspi_mmio);
 
 
-    qdev_init_gpio_out_named(DEVICE(state), &state->qspi_out[0], "qspi-out",
+    qdev_init_gpio_out_named(DEVICE(state), &state->qspi_out[2], "qspi-out",
         RP2040_GPIO_QSPI_IO_PINS);
-    qdev_init_gpio_out_named(DEVICE(state), &state->qspi_cs, "qspi-cs", 1);
-    qdev_init_gpio_out_named(DEVICE(state), &state->qspi_sclk, "qspi-sclk", 1);
+    qdev_init_gpio_out_named(DEVICE(state), &state->qspi_out[1], "qspi-cs", 1);
+    qemu_set_irq(state->qspi_out[1], 0);
+    qdev_init_gpio_out_named(DEVICE(state), &state->qspi_out[0], "qspi-sclk", 1);
+
     qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_qspi_set, "qspi-in",
         RP2040_GPIO_QSPI_IO_PINS);
+    qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_cs_qspi_set, "qspi-cs-in", 1);
+    qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_sclk_qspi_set, "qspi-sclk-in", 1);
 
     rp2040_gpio_reset(state, true);
     rp2040_qspi_io_reset(state, true);
@@ -295,7 +323,7 @@ type_init(rp2040_gpio_qspi_register_types)
 
 void rp2040_gpio_reset(RP2040GpioState *state, bool reset_state)
 {
-    state->gpio_reset_done = state->gpio_in_reset == 1 && reset_state == 0;
+    state->gpio_reset_done = !reset_state;
 
     if (reset_state)
     {
@@ -303,6 +331,7 @@ void rp2040_gpio_reset(RP2040GpioState *state, bool reset_state)
             state->gpio_ctrl[i]._value = 0x00000000;
             state->gpio_ctrl[i].funcsel = 0x1f;
             state->gpio_status[i]._value = 0x00000000;
+            state->gpio_status[i].infrompad = 1;
         }
     }
 
@@ -311,12 +340,13 @@ void rp2040_gpio_reset(RP2040GpioState *state, bool reset_state)
 
 void rp2040_qspi_io_reset(RP2040GpioState *state, bool reset_state)
 {
-    state->qspi_reset_done = state->qspi_in_reset == 1 && reset_state == 0;
+    state->qspi_reset_done = !reset_state;
 
     for (int i = 0; i < RP2040_GPIO_QSPI_IO_PINS; ++i) {
         state->qspi_ctrl[i]._value = 0x00000000;
         state->qspi_ctrl[i].funcsel = 0x1f;
         state->qspi_status[i]._value = 0x00000000;
+        state->qspi_status[i].infrompad = 1;
     }
 
     state->qspi_in_reset = reset_state;
@@ -341,4 +371,3 @@ int rp2040_qspi_io_get_reset_done(RP2040GpioState *state)
 {
     return state->qspi_reset_done;
 }
-

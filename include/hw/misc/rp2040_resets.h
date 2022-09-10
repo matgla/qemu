@@ -35,6 +35,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(RP2040ResetsState, RP2040_RESETS)
 
 typedef struct RP2040GpioState RP2040GpioState;
 typedef struct RP2040PadsState RP2040PadsState;
+typedef struct RP2040TimerState RP2040TimerState;
 
 struct RP2040ResetsState {
     SysBusDevice parent_obj;
@@ -43,6 +44,7 @@ struct RP2040ResetsState {
 
     RP2040GpioState *gpio;
     RP2040PadsState *pads;
+    RP2040TimerState *timer;
 };
 
 #endif /* RP2040_RESETS_H */

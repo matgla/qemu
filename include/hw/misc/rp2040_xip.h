@@ -1,5 +1,5 @@
 /*
- * RP2040 Timer
+ * RP2040 XIP
  *
  * Copyright (c) 2022 Mateusz Stadnik <matgla@live.com>
  *
@@ -22,31 +22,22 @@
  * THE SOFTWARE.
  */
 
-#ifndef RP2040_TIMER_H
-#define RP2040_TIMER_H
-
-#include <stdint.h>
+#ifndef RP2040_XIP_H
+#define RP2040_XIP_H
 
 #include "qemu/osdep.h"
 #include "exec/memory.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
-#define TYPE_RP2040_TIMER "rp2040.timer"
+#define TYPE_RP2040_XIP "rp2040.xip"
+OBJECT_DECLARE_SIMPLE_TYPE(RP2040XipState, RP2040_XIP)
 
-OBJECT_DECLARE_SIMPLE_TYPE(RP2040TimerState, RP2040_TIMER)
-
-struct RP2040TimerState {
+struct RP2040XipState {
     SysBusDevice parent_obj;
 
-    bool in_reset;
-    bool reset_done;
-
     MemoryRegion mmio;
+    BlockBackend *blk;
 };
 
-void rp2040_timer_reset(RP2040TimerState *state, bool reset_state);
-int rp2040_timer_get_reset_state(RP2040TimerState *state);
-int rp2040_timer_get_reset_done(RP2040TimerState *state);
-
-#endif /* RP2040_TIMER_H */
+#endif /* RP2040_XIP_H */

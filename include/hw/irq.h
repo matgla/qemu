@@ -38,7 +38,7 @@ qemu_irq qemu_allocate_irq(qemu_irq_handler handler, void *opaque, int n);
  * preserved. New IRQs are assigned the argument handler and opaque data.
  */
 qemu_irq *qemu_extend_irqs(qemu_irq *old, int n_old, qemu_irq_handler handler,
-                                void *opaque, int n);
+                           void *opaque, int n);
 
 void qemu_free_irqs(qemu_irq *s, int n);
 void qemu_free_irq(qemu_irq irq);

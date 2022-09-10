@@ -24,14 +24,15 @@
 
 #include "hw/misc/rp2040_resets.h"
 
-#include "hw/gpio/rp2040_gpio.h"
 #include "hw/irq.h"
-#include "hw/misc/rp2040_pads.h"
-#include "hw/misc/rp2040_utils.h"
 #include "qapi/error.h"
 #include "qemu/log.h"
 #include "trace.h"
 
+#include "hw/gpio/rp2040_gpio.h"
+#include "hw/misc/rp2040_pads.h"
+#include "hw/misc/rp2040_utils.h"
+#include "hw/timer/rp2040_timer.h"
 
 #define RP2040_RESETS_REGISTER_SIZE 0x4000
 
@@ -105,6 +106,8 @@ static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
         << RP2040_RESETS_PADS_BANK0;
     const int pads_qspi_state = rp2040_qspi_pads_get_reset_state(state->pads)
         << RP2040_RESETS_PADS_QSPI;
+    const int timer_state = rp2040_timer_get_reset_state(state->timer)
+        << RP2040_RESETS_TIMER;
 
     const uint32_t reset_state =
         1 << RP2040_RESETS_ADC |
@@ -128,7 +131,7 @@ static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
         1 << RP2040_RESETS_SYSCFG |
         1 << RP2040_RESETS_SYSINFO |
         1 << RP2040_RESETS_TBMAN |
-        1 << RP2040_RESETS_TIMER |
+        timer_state |
         1 << RP2040_RESETS_UART0 |
         1 << RP2040_RESETS_UART1 |
         1 << RP2040_RESETS_USBCTRL;
@@ -143,9 +146,9 @@ static uint64_t rp2040_resets_read(void *opaque, hwaddr offset, unsigned int siz
     switch (offset) {
         case RP2040_RESETS_RESET:
             const uint32_t reset_state = rp2040_resets_get_state(state);
-            fprintf(stderr, "Cos tam state: 0x%x\n", reset_state);
             return reset_state;
         case RP2040_RESETS_RESET_DONE:
+            // fprintf(stderr, "Get reset done\n");
             const int gpio_done = rp2040_gpio_get_reset_done(state->gpio)
                     << RP2040_RESETS_IO_BANK0;
             const int qspi_done = rp2040_qspi_io_get_reset_done(state->gpio)
@@ -155,33 +158,35 @@ static uint64_t rp2040_resets_read(void *opaque, hwaddr offset, unsigned int siz
             const int pads_qspi_done =
                 rp2040_qspi_pads_get_reset_done(state->pads)
                     << RP2040_RESETS_PADS_QSPI;
+            const int timer_done = rp2040_timer_get_reset_done(state->timer)
+                << RP2040_RESETS_TIMER;
+
             const uint32_t reset_done =
                 0 << RP2040_RESETS_ADC |
-                0 << RP2040_RESETS_BUSCTRL |
-                0 << RP2040_RESETS_DMA |
-                0 << RP2040_RESETS_I2C0 |
-                0 << RP2040_RESETS_I2C1 |
+                1 << RP2040_RESETS_BUSCTRL |
+                1 << RP2040_RESETS_DMA |
+                1 << RP2040_RESETS_I2C0 |
+                1 << RP2040_RESETS_I2C1 |
                 gpio_done |
                 qspi_done |
-                0 << RP2040_RESETS_JTAG |
+                1 << RP2040_RESETS_JTAG |
                 pads_done |
                 pads_qspi_done |
-                0 << RP2040_RESETS_PIO0 |
-                0 << RP2040_RESETS_PIO1 |
-                0 << RP2040_RESETS_PLL_SYS |
-                0 << RP2040_RESETS_PLL_USB |
-                0 << RP2040_RESETS_PWM |
+                1 << RP2040_RESETS_PIO0 |
+                1 << RP2040_RESETS_PIO1 |
+                1 << RP2040_RESETS_PLL_SYS |
+                1 << RP2040_RESETS_PLL_USB |
+                1 << RP2040_RESETS_PWM |
                 0 << RP2040_RESETS_RTC |
                 0 << RP2040_RESETS_SPI0 |
                 0 << RP2040_RESETS_SPI1 |
-                0 << RP2040_RESETS_SYSCFG |
-                0 << RP2040_RESETS_SYSINFO |
-                0 << RP2040_RESETS_TBMAN |
-                0 << RP2040_RESETS_TIMER |
+                1 << RP2040_RESETS_SYSCFG |
+                1 << RP2040_RESETS_SYSINFO |
+                1 << RP2040_RESETS_TBMAN |
+                timer_done |
                 0 << RP2040_RESETS_UART0 |
                 0 << RP2040_RESETS_UART1 |
                 0 << RP2040_RESETS_USBCTRL;
-            fprintf(stderr, "Cos tam cdone: 0x%x\n", reset_done);
         return reset_done;
     }
 
@@ -191,6 +196,11 @@ static uint64_t rp2040_resets_read(void *opaque, hwaddr offset, unsigned int siz
     return 0;
 }
 
+static void rp2040_reset_unimp(const char *name, uint32_t value)
+{
+    qemu_log_mask(LOG_UNIMP, "%s: called reset of %s with %x\n", __func__,
+                  name, value);
+}
 
 static void rp2040_resets_write(void *opaque, hwaddr offset,
                                 uint64_t value, unsigned int size)
@@ -201,18 +211,37 @@ static void rp2040_resets_write(void *opaque, hwaddr offset,
     switch (offset) {
         case RP2040_RESETS_RESET:
             uint32_t reset_state = rp2040_resets_get_state(state);
-            fprintf(stderr, "%s: Original: 0x%x, value: 0x%lx\n", __func__, reset_state, value);
             rp2040_write_to_register(access, &reset_state, value);
-            fprintf(stderr, "%s: After: 0x%x\n", __func__, reset_state);
-
+            rp2040_reset_unimp("adc", reset_state & RP2040_RESETS_ADC_MASK);
+            rp2040_reset_unimp("busctrl", reset_state & RP2040_RESETS_BUSCTRL_MASK);
+            rp2040_reset_unimp("dma", reset_state & RP2040_RESETS_DMA_MASK);
+            rp2040_reset_unimp("i2c0", reset_state & RP2040_RESETS_I2C0_MASK);
+            rp2040_reset_unimp("i2c1", reset_state & RP2040_RESETS_I2C1_MASK);
             rp2040_gpio_reset(state->gpio,
                 reset_state & RP2040_RESETS_IO_BANK0_MASK);
             rp2040_qspi_io_reset(state->gpio,
                 reset_state & RP2040_RESETS_IO_QSPI_MASK);
+            rp2040_reset_unimp("jtag", reset_state & RP2040_RESETS_JTAG_MASK);
             rp2040_pads_reset(state->pads,
                 reset_state & RP2040_RESETS_PADS_BANK0_MASK);
             rp2040_qspi_pads_reset(state->pads,
                 reset_state & RP2040_RESETS_PADS_QSPI_MASK);
+            rp2040_reset_unimp("pio0", reset_state & RP2040_RESETS_PIO0_MASK);
+            rp2040_reset_unimp("pio1", reset_state & RP2040_RESETS_PIO1_MASK);
+            rp2040_reset_unimp("pllsys", reset_state & RP2040_RESETS_PLL_SYS_MASK);
+            rp2040_reset_unimp("pllusb", reset_state & RP2040_RESETS_PLL_USB_MASK);
+            rp2040_reset_unimp("pwm", reset_state & RP2040_RESETS_PWM_MASK);
+            rp2040_reset_unimp("rtc", reset_state & RP2040_RESETS_RTC_MASK);
+            rp2040_reset_unimp("spi0", reset_state & RP2040_RESETS_SPI0_MASK);
+            rp2040_reset_unimp("spi1", reset_state & RP2040_RESETS_SPI1_MASK);
+            rp2040_reset_unimp("syscfg", reset_state & RP2040_RESETS_SYSCFG_MASK);
+            rp2040_reset_unimp("sysinfo", reset_state & RP2040_RESETS_SYSINFO_MASK);
+            rp2040_reset_unimp("tbman", reset_state & RP2040_RESETS_TBMAN_MASK);
+            rp2040_timer_reset(state->timer,
+                reset_state & RP2040_RESETS_TIMER_MASK);
+            rp2040_reset_unimp("uart0", reset_state & RP2040_RESETS_UART0_MASK);
+            rp2040_reset_unimp("uart1", reset_state & RP2040_RESETS_UART1_MASK);
+            rp2040_reset_unimp("usbctrl", reset_state & RP2040_RESETS_USBCTRL_MASK);
         return;
         case RP2040_RESETS_RESET_DONE:
             qemu_log_mask(LOG_GUEST_ERROR, "%s: read only register: 0x%03lx\n",
@@ -241,6 +270,10 @@ static void rp2040_resets_realize(DeviceState *dev, Error **errp)
     }
     if (!state->pads) {
         error_report("RP2040 PADS not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->timer) {
+        error_report("RP2040 TIMER not connected to RP2040 RESETS");
         exit(EXIT_FAILURE);
     }
 

@@ -28,11 +28,13 @@
 
 #include <stdint.h>
 
-#include "hw/gpio/rp2040_gpio.h"
 #include "hw/qdev-properties.h"
 #include "hw/sysbus.h"
+#include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qom/object.h"
+
+#include "hw/gpio/rp2040_gpio.h"
 
 #define RP2040_SIO_CPUID 0x000
 #define RP2040_SIO_GPIO_IN 0x004
@@ -112,6 +114,16 @@ static uint64_t rp2040_sio_read(void *opaque, hwaddr offset, unsigned int size)
     switch (offset) {
         case RP2040_SIO_CPUID:
             return state->cpuid;
+        case RP2040_SIO_GPIO_HI_IN:
+            /* TODO: it's not actually true, should be checked IN&OUT */
+            const uint32_t qspi_state =
+                 state->gpio->qspi_status[0].infrompad << 0 |
+                 state->gpio->qspi_status[1].infrompad << 1 |
+                 state->gpio->qspi_status[2].infrompad << 2 |
+                 state->gpio->qspi_status[3].infrompad << 3 |
+                 state->gpio->qspi_status[4].infrompad << 4 |
+                 state->gpio->qspi_status[5].infrompad << 5;
+            return qspi_state;
         case RP2040_SIO_FIFO_ST:
             state->fifo_st.vld = !fifo32_is_empty(&state->fifo_rx);
             state->fifo_st.rdy = !fifo32_is_full(state->fifo_tx);
@@ -168,6 +180,11 @@ static void rp2040_sio_realize(DeviceState *dev, Error **errp)
 {
     RP2040SioState *state = RP2040_SIO(dev);
     SysBusDevice *sysbus_dev = SYS_BUS_DEVICE(dev);
+
+    if (!state->gpio) {
+        error_report("RP2040 GPIO not connected to RP2040 SIO");
+        exit(EXIT_FAILURE);
+    }
 
     memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_sio_io, state,
         "io", 0x4000);
