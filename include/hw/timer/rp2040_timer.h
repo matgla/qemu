@@ -31,6 +31,8 @@
 #include "exec/memory.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
+#include "qemu/timer.h"
+#include "hw/irq.h"
 
 #define TYPE_RP2040_TIMER "rp2040.timer"
 
@@ -43,6 +45,10 @@ struct RP2040TimerState {
     bool reset_done;
 
     MemoryRegion mmio;
+
+    QEMUTimer *timers[4];
+    qemu_irq irqs[4];
+    uint8_t timer_armed;
 };
 
 void rp2040_timer_reset(RP2040TimerState *state, bool reset_state);

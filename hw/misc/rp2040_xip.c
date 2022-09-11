@@ -41,7 +41,7 @@ static uint64_t rp2040_xip_read(void *opaque, hwaddr offset, unsigned int size)
 {
     RP2040XipState *state = RP2040_XIP(opaque);
     uint32_t data;
-    blk_pread(state->blk, offset, sizeof(uint32_t), &data, 0);
+    blk_pread(state->blk, offset, size, &data, 0);
     return data;
 }
 
@@ -56,7 +56,7 @@ static const MemoryRegionOps rp2040_xip_io = {
     .read = rp2040_xip_read,
     .write = rp2040_xip_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .impl.min_access_size = 4,
+    .impl.min_access_size = 1,
     .impl.max_access_size = 4,
 };
 

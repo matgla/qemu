@@ -67,14 +67,10 @@ static void rp2040_clocks_write(void *opaque, hwaddr offset,
 {
     RP2040ClocksState *state = RP2040_CLOCKS(opaque);
     RP2040AccessType access = rp2040_get_access_type(offset);
-    fprintf(stderr, "Write to clocks: %lx -> %lx\n", offset, value);
     offset &= 0x0fff;
     switch (offset) {
         case RP2040_CLOCKS_CLK_REF_CTRL:
-            fprintf(stderr, "Value was %d, %d\n", state->refctrl.src, state->refctrl.auxsrc);
-
             rp2040_write_to_register(access, &state->refctrl.value, value);
-            fprintf(stderr, "Value is %d, %d\n", state->refctrl.src, state->refctrl.auxsrc);
             state->selected_clk_ref = 1 << state->refctrl.src;
             return;
         case RP2040_CLOCKS_CLK_SYS_CTRL:

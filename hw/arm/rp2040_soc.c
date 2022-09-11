@@ -386,6 +386,12 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     cs_line_gpio = qdev_get_gpio_in_named(DEVICE(&s->gpio), "qspi-cs-in", 0);
     qdev_connect_gpio_out_named(DEVICE(&s->ssi), "cs", 0, cs_line_gpio);
 
+    for (int i = 0; i < 4; ++i) {
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->timer), i, qdev_get_gpio_in(
+                            DEVICE(&s->armv6m), i));
+    }
+
+
 }
 
 static Property rp2040_soc_properties[] = {
