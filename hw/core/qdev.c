@@ -437,6 +437,7 @@ DeviceState *qdev_find_recursive(BusState *bus, const char *id)
         QTAILQ_FOREACH_RCU(kid, &bus->children, sibling) {
             DeviceState *dev = kid->child;
 
+            fprintf(stderr, "DevId: %s\n", dev->id);
             if (dev->id && strcmp(dev->id, id) == 0) {
                 return dev;
             }

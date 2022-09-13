@@ -41,21 +41,7 @@ struct RP2040PadsState {
     MemoryRegion gpio_mmio;
     MemoryRegion qspi_mmio;
 
-    bool pads_qspi_in_reset;
-    bool pads_qspi_reset_done;
-    bool pads_in_reset;
-    bool pads_reset_done;
-
-
     RP2040GpioState *gpio;
 };
-
-void rp2040_pads_reset(RP2040PadsState *state, bool reset_state);
-void rp2040_qspi_pads_reset(RP2040PadsState *state, bool reset_state);
-int rp2040_pads_get_reset_state(RP2040PadsState *state);
-int rp2040_qspi_pads_get_reset_state(RP2040PadsState *state);
-int rp2040_pads_get_reset_done(RP2040PadsState *state);
-int rp2040_qspi_pads_get_reset_done(RP2040PadsState *state);
-
 
 #endif /* RP2040_PADS_H */

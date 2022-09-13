@@ -32,7 +32,10 @@
 #include "qom/object.h"
 
 #define TYPE_RP2040_GPIO "rp2040.gpio"
+#define TYPE_RP2040_QSPI_IO "rp2040.qspi_io"
+
 OBJECT_DECLARE_SIMPLE_TYPE(RP2040GpioState, RP2040_GPIO)
+OBJECT_DECLARE_SIMPLE_TYPE(RP2040QspiIOState, RP2040_QSPI_IO)
 
 #define RP2040_GPIO_PINS      30
 #define RP2040_GPIO_QSPI_PINS 6
@@ -79,19 +82,25 @@ typedef union RP2040GpioControl {
 struct RP2040GpioState {
     SysBusDevice parent_obj;
 
-    MemoryRegion container;
-    MemoryRegion gpio_mmio;
-    MemoryRegion qspi_mmio;
+    MemoryRegion mmio;
     qemu_irq     irq;
 
-    bool qspi_in_reset;
-    bool qspi_reset_done;
     bool gpio_in_reset;
     bool gpio_reset_done;
 
     RP2040GpioStatus  gpio_status[RP2040_GPIO_PINS];
     RP2040GpioControl gpio_ctrl[RP2040_GPIO_PINS];
     qemu_irq          gpio_out[RP2040_GPIO_PINS];
+};
+
+struct RP2040QspiIOState {
+    SysBusDevice parent_obj;
+
+    MemoryRegion mmio;
+    qemu_irq     irq;
+
+    bool qspi_in_reset;
+    bool qspi_reset_done;
 
     RP2040GpioStatus  qspi_status[RP2040_GPIO_QSPI_PINS];
     RP2040GpioControl qspi_ctrl[RP2040_GPIO_QSPI_PINS];
@@ -99,10 +108,10 @@ struct RP2040GpioState {
 };
 
 void rp2040_gpio_reset(RP2040GpioState *state, bool reset_state);
-void rp2040_qspi_io_reset(RP2040GpioState *state, bool reset_state);
+void rp2040_qspi_io_reset(RP2040QspiIOState *state, bool reset_state);
 int rp2040_gpio_get_reset_state(RP2040GpioState *state);
-int rp2040_qspi_io_get_reset_state(RP2040GpioState *state);
+int rp2040_qspi_io_get_reset_state(RP2040QspiIOState *state);
 int rp2040_gpio_get_reset_done(RP2040GpioState *state);
-int rp2040_qspi_io_get_reset_done(RP2040GpioState *state);
+int rp2040_qspi_io_get_reset_done(RP2040QspiIOState *state);
 
 #endif /* RP2040_GPIO_H */

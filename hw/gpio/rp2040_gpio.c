@@ -80,10 +80,11 @@ static void rp2040_set_gpio_state(RP2040GpioStatus *status, qemu_irq irq,
 static void rp2040_process_gpio_write(hwaddr offset, uint32_t value,
     const Rp2040GpioRegisterDesc *desc, const char *name)
 {
+    RP2040AccessType access = rp2040_get_access_type(offset);
     if (desc->in_reset) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: periph in reset (%s)", __func__, name);
     }
-    RP2040AccessType access = rp2040_get_access_type(offset);
+
     offset = offset & 0x0fff;
     /* Process status & control registers */
     if (offset <= desc->state_and_control_end) {
@@ -133,7 +134,7 @@ static void rp2040_process_gpio_write(hwaddr offset, uint32_t value,
 static void rp2040_gpio_qspi_write(void *opaque, hwaddr offset,
     uint64_t value, unsigned int size)
 {
-    RP2040GpioState *state = RP2040_GPIO(opaque);
+    RP2040QspiIOState *state = RP2040_QSPI_IO(opaque);
     const Rp2040GpioRegisterDesc desc = {
         .in_reset = state->qspi_in_reset,
         .state_and_control_end = 0x058,
@@ -147,7 +148,7 @@ static void rp2040_gpio_qspi_write(void *opaque, hwaddr offset,
 static uint64_t rp2040_gpio_qspi_read(void *opaque, hwaddr offset,
     unsigned int size)
 {
-    RP2040GpioState *state = RP2040_GPIO(opaque);
+    RP2040QspiIOState *state = RP2040_QSPI_IO(opaque);
     const Rp2040GpioRegisterDesc desc = {
         .in_reset = state->qspi_in_reset,
         .state_and_control_end = 0x058,
@@ -208,19 +209,18 @@ static const MemoryRegionOps rp2040_gpio_io = {
 
 static void rp2040_gpio_set(void *opaque, int line, int value)
 {
-    fprintf(stderr, "Set gpio: %d\n", line);
-    // rp2040_set_gpio_state
+    qemu_log_mask(LOG_UNIMP, "%s: not yet implemented", __func__);
+
 }
 
 static void rp2040_gpio_qspi_set(void *opaque, int line, int value)
 {
-    fprintf(stderr, "Set qspi gpio: %d\n", line);
-    // rp2040_set_gpio_state
+    qemu_log_mask(LOG_UNIMP, "%s: not yet implemented", __func__);
 }
 
 static void rp2040_gpio_cs_qspi_set(void *opaque, int line, int value)
 {
-    RP2040GpioState *state = RP2040_GPIO(opaque);
+    RP2040QspiIOState *state = RP2040_QSPI_IO(opaque);
     /* This comes from periph, this means that has no effect if outover is 1 */
     state->qspi_status[1].outfromperi = value;
 
@@ -244,25 +244,25 @@ static void rp2040_gpio_realize(DeviceState *dev, Error **errp)
     RP2040GpioState *state = RP2040_GPIO(dev);
     SysBusDevice *sysbus = SYS_BUS_DEVICE(dev);
 
-    memory_region_init(&state->container, OBJECT(dev), "gpio",
-        RP2040_IO_REGISTER_SIZE);
-    sysbus_init_mmio(sysbus, &state->container);
-
-    /* Initialize GPIOs */
-    memory_region_init_io(&state->gpio_mmio, OBJECT(dev), &rp2040_gpio_io,
+    memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_gpio_io,
         state, "io", 0x4000);
-    memory_region_add_subregion(&state->container, 0x0000, &state->gpio_mmio);
+    sysbus_init_mmio(sysbus, &state->mmio);
 
     qdev_init_gpio_out_named(DEVICE(state), state->gpio_out, "out",
         RP2040_GPIO_PINS);
     qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_set, "in",
         RP2040_GPIO_PINS);
+}
+
+static void rp2040_qspi_realize(DeviceState *dev, Error **errp)
+{
+    RP2040QspiIOState *state = RP2040_QSPI_IO(dev);
+    SysBusDevice *sysbus = SYS_BUS_DEVICE(dev);
 
     /* Initialize QSPI XIP GPIOs */
-    memory_region_init_io(&state->qspi_mmio, OBJECT(dev), &rp2040_gpio_qspi_io,
+    memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_gpio_qspi_io,
         state, "qspi", 0x4000);
-    memory_region_add_subregion(&state->container, 0x4000, &state->qspi_mmio);
-
+    sysbus_init_mmio(sysbus, &state->mmio);
 
     qdev_init_gpio_out_named(DEVICE(state), &state->qspi_out[2], "qspi-out",
         RP2040_GPIO_QSPI_IO_PINS);
@@ -274,21 +274,6 @@ static void rp2040_gpio_realize(DeviceState *dev, Error **errp)
         RP2040_GPIO_QSPI_IO_PINS);
     qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_cs_qspi_set, "qspi-cs-in", 1);
     qdev_init_gpio_in_named(DEVICE(state), rp2040_gpio_sclk_qspi_set, "qspi-sclk-in", 1);
-
-    rp2040_gpio_reset(state, true);
-    rp2040_qspi_io_reset(state, true);
-}
-
-static void rp2040_gpio_unrealize(DeviceState *dev)
-{
-    RP2040GpioState *state = RP2040_GPIO(dev);
-
-    /*
-     * Remove cyclic dependency between the device
-     * and it own memory subregions
-     */
-    memory_region_del_subregion(&state->container, &state->gpio_mmio);
-    memory_region_del_subregion(&state->container, &state->qspi_mmio);
 }
 
 static void rp2040_gpio_instance_init(Object *obj)
@@ -296,16 +281,55 @@ static void rp2040_gpio_instance_init(Object *obj)
 
 }
 
+static void rp2040_gpio_reset_enter(Object *obj, ResetType type)
+{
+    RP2040GpioState *state = RP2040_GPIO(obj);
+
+    for (int i = 0; i < RP2040_GPIO_PINS; ++i) {
+        state->gpio_ctrl[i]._value = 0x00000000;
+        state->gpio_ctrl[i].funcsel = 0x1f;
+        state->gpio_status[i]._value = 0x00000000;
+        /* High impedance input as default */
+        state->gpio_status[i].infrompad = 1;
+    }
+}
+
+static void rp2040_qspi_reset_enter(Object *obj, ResetType type)
+{
+    RP2040QspiIOState *state = RP2040_QSPI_IO(obj);
+
+    for (int i = 0; i < RP2040_GPIO_QSPI_PINS; ++i) {
+        state->qspi_ctrl[i]._value = 0x00000000;
+        state->qspi_ctrl[i].funcsel = 0x1f;
+        state->qspi_status[i]._value = 0x00000000;
+        /* High impedance input as default */
+        state->qspi_status[i].infrompad = 1;
+    }
+}
+
 static void rp2040_gpio_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     dc->desc = "RP2040 GPIO";
     dc->realize = rp2040_gpio_realize;
-    dc->unrealize = rp2040_gpio_unrealize;
+
+    rc->phases.enter = rp2040_gpio_reset_enter;
 }
 
-static const TypeInfo rp2040_gpio_qspi_info = {
+static void rp2040_qspi_io_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
+
+    dc->desc = "RP2040 QSPI IO";
+    dc->realize = rp2040_qspi_realize;
+
+    rc->phases.enter = rp2040_qspi_reset_enter;
+}
+
+static const TypeInfo rp2040_gpio_info = {
     .name = TYPE_RP2040_GPIO,
     .parent = TYPE_SYS_BUS_DEVICE,
     .class_init = rp2040_gpio_class_init,
@@ -313,61 +337,19 @@ static const TypeInfo rp2040_gpio_qspi_info = {
     .instance_init = rp2040_gpio_instance_init,
 };
 
+static const TypeInfo rp2040_qspi_io_info = {
+    .name = TYPE_RP2040_QSPI_IO,
+    .parent = TYPE_SYS_BUS_DEVICE,
+    .class_init = rp2040_qspi_io_class_init,
+    .instance_size = sizeof(RP2040QspiIOState),
+    .instance_init = rp2040_gpio_instance_init,
+};
+
+
 static void rp2040_gpio_qspi_register_types(void)
 {
-    type_register_static(&rp2040_gpio_qspi_info);
+    type_register_static(&rp2040_gpio_info);
+    type_register_static(&rp2040_qspi_io_info);
 }
 
 type_init(rp2040_gpio_qspi_register_types)
-
-
-void rp2040_gpio_reset(RP2040GpioState *state, bool reset_state)
-{
-    state->gpio_reset_done = !reset_state;
-
-    if (reset_state)
-    {
-        for (int i = 0; i < RP2040_GPIO_PINS; ++i) {
-            state->gpio_ctrl[i]._value = 0x00000000;
-            state->gpio_ctrl[i].funcsel = 0x1f;
-            state->gpio_status[i]._value = 0x00000000;
-            state->gpio_status[i].infrompad = 1;
-        }
-    }
-
-    state->gpio_in_reset = reset_state;
-}
-
-void rp2040_qspi_io_reset(RP2040GpioState *state, bool reset_state)
-{
-    state->qspi_reset_done = !reset_state;
-
-    for (int i = 0; i < RP2040_GPIO_QSPI_IO_PINS; ++i) {
-        state->qspi_ctrl[i]._value = 0x00000000;
-        state->qspi_ctrl[i].funcsel = 0x1f;
-        state->qspi_status[i]._value = 0x00000000;
-        state->qspi_status[i].infrompad = 1;
-    }
-
-    state->qspi_in_reset = reset_state;
-}
-
-int rp2040_gpio_get_reset_state(RP2040GpioState *state)
-{
-    return state->gpio_in_reset;
-}
-
-int rp2040_qspi_io_get_reset_state(RP2040GpioState *state)
-{
-    return state->qspi_in_reset;
-}
-
-int rp2040_gpio_get_reset_done(RP2040GpioState *state)
-{
-    return state->gpio_reset_done;
-}
-
-int rp2040_qspi_io_get_reset_done(RP2040GpioState *state)
-{
-    return state->qspi_reset_done;
-}

@@ -65,10 +65,12 @@
 #define RP2040_RESETS_BASE              0x4000c000
 #define RP2040_PSM_BASE                 0x40010000
 #define RP2040_IO_BANK0_BASE            0x40014000
+#define RP2040_QSPI_IO_BASE             0x40018000
 #define RP2040_PADS_BANK0_BASE          0x4001c000
 #define RP2040_PADS_QSPI_BASE           0x40020000
 #define RP2040_XOSC_BASE                0x40024000
 #define RP2040_PLL_SYS_BASE             0x40028000
+#define RP2040_BUSCTRL_BASE             0x40030000
 #define RP2040_PLL_USB_BASE             0x4002c000
 #define RP2040_BUSCTRL_BASE             0x40030000
 #define RP2040_UART0_BASE               0x40034000
@@ -122,6 +124,9 @@ static void rp2040_soc_init(Object *obj)
 
     memory_region_init(&s->container, obj, "rp2040-container", UINT64_MAX);
 
+    object_initialize_child(obj, "gpio", &s->gpio, TYPE_RP2040_GPIO);
+    object_initialize_child(obj, "qspi_io", &s->qspi_io, TYPE_RP2040_QSPI_IO);
+
     /* cores initialization */
     for (i = 0; i < RP2040_SOC_NUMBER_OF_CORES; ++i) {
         g_autofree char *cpu_name = g_strdup_printf("armv6m[%d]", i);
@@ -142,14 +147,10 @@ static void rp2040_soc_init(Object *obj)
         }
 
         object_initialize_child(obj, sio_name, &s->sio[i], TYPE_RP2040_SIO);
-        qdev_prop_set_uint32(DEVICE(&s->sio[i]), "cpuid", i);
-
-        s->sio[i].gpio = &s->gpio;
     }
 
     /* peripherals initialization */
     object_initialize_child(obj, "pads", &s->pads, TYPE_RP2040_PADS);
-    object_initialize_child(obj, "gpio", &s->gpio, TYPE_RP2040_GPIO);
     object_initialize_child(obj, "resets", &s->resets, TYPE_RP2040_RESETS);
     object_initialize_child(obj, "timer", &s->timer, TYPE_RP2040_TIMER);
     object_initialize_child(obj, "ssi", &s->ssi, TYPE_RP2040_SSI);
@@ -163,14 +164,8 @@ static void rp2040_soc_init(Object *obj)
     object_initialize_child(obj, "uart1", &s->uart1, TYPE_RP2040_UART);
     qdev_prop_set_chr(DEVICE(&s->uart1.pl011), "chardev", serial_hd(1));
 
-    s->resets.gpio = &s->gpio;
-    s->resets.pads = &s->pads;
-    s->resets.timer = &s->timer;
-
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
     s->refclk = qdev_init_clock_in(DEVICE(s), "refclk", NULL, NULL, 0);
-
-
 }
 
 static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
@@ -245,8 +240,10 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     create_unimplemented_device("SRAM1 BASE", RP2040_SRAM1_BASE, 0x10000);
     create_unimplemented_device("SRAM2 BASE", RP2040_SRAM2_BASE, 0x10000);
     create_unimplemented_device("SRAM3 BASE", RP2040_SRAM3_BASE, 0x10000);
-    create_unimplemented_device("SYSINFO", RP2040_SYSINFO_BASE, 0x4000);
-    create_unimplemented_device("SYSCFG", RP2040_SYSCFG_BASE, 0x4000);
+    s->resets.sysinfo = OBJECT(create_unimplemented_device("SYSINFO",
+                               RP2040_SYSINFO_BASE, 0x4000));
+    s->resets.syscfg = OBJECT(create_unimplemented_device("SYSCFG",
+                              RP2040_SYSCFG_BASE, 0x4000));
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->clocks), errp)) {
         return;
@@ -254,10 +251,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->clocks), 0, RP2040_CLOCKS_BASE);
 
 
-    if (!sysbus_realize(SYS_BUS_DEVICE(&s->resets), errp)) {
-        return;
-    }
-    sysbus_mmio_map(SYS_BUS_DEVICE(&s->resets), 0, RP2040_RESETS_BASE);
+
 
     create_unimplemented_device("PSM", RP2040_PSM_BASE, 0x4000);
 
@@ -265,6 +259,12 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->gpio), 0, RP2040_IO_BANK0_BASE);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->qspi_io), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->qspi_io), 0, RP2040_QSPI_IO_BASE);
+
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pads), errp)) {
         return;
@@ -277,15 +277,19 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->xosc), 0, RP2040_XOSC_BASE);
 
+    s->resets.busctrl = OBJECT(create_unimplemented_device("BUSCTRL",
+        RP2040_BUSCTRL_BASE, 0x4000));
+
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pll_sys), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->pll_sys), 0, RP2040_PLL_SYS_BASE);
-
+    s->resets.pllsys = OBJECT(&s->pll_sys);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pll_usb), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->pll_usb), 0, RP2040_PLL_USB_BASE);
+    s->resets.pllusb = OBJECT(&s->pll_usb);
 
     create_unimplemented_device("BUSCTRL",
         RP2040_BUSCTRL_BASE, 0x4000);
@@ -294,25 +298,25 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->uart0), 0, RP2040_UART0_BASE);
-
+    s->resets.uart0 = OBJECT(&s->uart0);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->uart1), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->uart1), 0, RP2040_UART1_BASE);
+    s->resets.uart1 = OBJECT(&s->uart1);
 
-
-    create_unimplemented_device("SPI0",
-        RP2040_SPI0_BASE, 0x4000);
-    create_unimplemented_device("SPI1",
-        RP2040_SPI1_BASE, 0x4000);
-    create_unimplemented_device("I2C0",
-        RP2040_I2C0_BASE, 0x4000);
-    create_unimplemented_device("I2C1",
-        RP2040_I2C1_BASE, 0x4000);
-    create_unimplemented_device("ADC",
-        RP2040_ADC_BASE, 0x4000);
-    create_unimplemented_device("PWM",
-        RP2040_PWM_BASE, 0x4000);
+    s->resets.spi0 = OBJECT(create_unimplemented_device("SPI0",
+        RP2040_SPI0_BASE, 0x4000));
+    s->resets.spi1 = OBJECT(create_unimplemented_device("SPI1",
+        RP2040_SPI1_BASE, 0x4000));
+    s->resets.i2c0 = OBJECT(create_unimplemented_device("I2C0",
+        RP2040_I2C0_BASE, 0x4000));
+    s->resets.i2c1 = OBJECT(create_unimplemented_device("I2C1",
+        RP2040_I2C1_BASE, 0x4000));
+    s->resets.adc = OBJECT(create_unimplemented_device("ADC",
+        RP2040_ADC_BASE, 0x4000));
+    s->resets.pwm = OBJECT(create_unimplemented_device("PWM",
+        RP2040_PWM_BASE, 0x4000));
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->timer), errp)) {
         return;
@@ -321,40 +325,34 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
 
     create_unimplemented_device("WATCHDOG",
         RP2040_WATCHDOG_BASE, 0x4000);
-    create_unimplemented_device("RTC",
-        RP2040_RTC_BASE, 0x4000);
+    s->resets.rtc = OBJECT(create_unimplemented_device("RTC",
+        RP2040_RTC_BASE, 0x4000));
     create_unimplemented_device("ROSC",
         RP2040_ROSC_BASE, 0x4000);
     create_unimplemented_device("VREG AND CHIP RESET",
         RP2040_VREG_AND_CHIP_RESET_BASE, 0x8000);
-    create_unimplemented_device("TBMAN",
-        RP2040_TBMAN_BASE, 0x4000);
-    create_unimplemented_device("DMA",
-        RP2040_DMA_BASE, 0x100000);
-    create_unimplemented_device("USB CTRL",
-        RP2040_USBCTRL_BASE, 0x100000);
+    s->resets.tbman = OBJECT(create_unimplemented_device("TBMAN",
+        RP2040_TBMAN_BASE, 0x4000));
+    s->resets.dma = OBJECT(create_unimplemented_device("DMA",
+        RP2040_DMA_BASE, 0x100000));
+    s->resets.usbctrl = OBJECT(create_unimplemented_device("USB CTRL",
+        RP2040_USBCTRL_BASE, 0x100000));
     create_unimplemented_device("USB CTRL REGS",
         RP2040_USBCTRL_REGS_BASE, 0x100000);
-    create_unimplemented_device("PIO0",
-        RP2040_PIO0_BASE, 0x100000);
-    create_unimplemented_device("PIO1",
-        RP2040_PIO1_BASE, 0x100000);
+    s->resets.pio0 = OBJECT(create_unimplemented_device("PIO0",
+        RP2040_PIO0_BASE, 0x100000));
+    s->resets.pio1 = OBJECT(create_unimplemented_device("PIO1",
+        RP2040_PIO1_BASE, 0x100000));
     create_unimplemented_device("XIP AUX",
         RP2040_XIP_AUX_BASE, 0x100000);
 
     /* Initialize cores */
     for (i = 0; i < RP2040_SOC_NUMBER_OF_CORES; ++i) {
         DeviceState *core = DEVICE(&s->armv6m[i]);
-        // qdev_prop_set_uint32(core, "num-irq", 32);
-        // qdev_prop_set_bit(core, "enable-bitband", true);
+        qdev_prop_set_uint32(core, "num-irq", 32);
+        qdev_prop_set_bit(core, "enable-bitband", true);
         qdev_connect_clock_in(core, "cpuclk", s->sysclk);
-        // qdev_connect_clock_in(core, "refclk", s->refclk);
 
-
-        // if (i == 0) {
-        //     object_property_set_bool(OBJECT(core), "start-powered-off",
-        //         true, &error_fatal);
-        // }
         if (i > 0) {
             memory_region_add_subregion_overlap(&s->core_container[i], 0,
                 &s->core_container_alias[i - 1], -1);
@@ -369,6 +367,11 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
             return;
         }
 
+        qdev_prop_set_uint32(DEVICE(&s->sio[i]), "cpuid", i);
+        object_property_set_link(OBJECT(&s->sio[i]), "gpio",
+            OBJECT(&s->gpio), &error_abort);
+        object_property_set_link(OBJECT(&s->sio[i]), "qspi",
+            OBJECT(&s->qspi_io), &error_abort);
 
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->sio[i]), errp)) {
             return;
@@ -376,22 +379,31 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
 
         memory_region_add_subregion(&s->core_container[i], RP2040_SIO_BASE,
                                     sysbus_mmio_get_region(SYS_BUS_DEVICE(
-                                        &s->sio[i]), 0));
+                                    &s->sio[i]), 0));
     }
 
     /* Connect intercore FIFOs */
     s->sio[0].fifo_tx = &s->sio[1].fifo_rx;
     s->sio[1].fifo_tx = &s->sio[0].fifo_rx;
 
-    cs_line_gpio = qdev_get_gpio_in_named(DEVICE(&s->gpio), "qspi-cs-in", 0);
+    cs_line_gpio = qdev_get_gpio_in_named(DEVICE(&s->qspi_io), "qspi-cs-in", 0);
     qdev_connect_gpio_out_named(DEVICE(&s->ssi), "cs", 0, cs_line_gpio);
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < RP2040_GPIO_QSPI_IO_PINS; ++i) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->timer), i, qdev_get_gpio_in(
                             DEVICE(&s->armv6m), i));
     }
 
+    s->resets.gpio = OBJECT(&s->gpio);
+    s->resets.qspi_io = OBJECT(&s->qspi_io);
+    s->resets.pads = OBJECT(&s->pads);
+    s->resets.qspi_pads = OBJECT(&s->pads);
+    s->resets.timer = OBJECT(&s->timer);
 
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->resets), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->resets), 0, RP2040_RESETS_BASE);
 }
 
 static Property rp2040_soc_properties[] = {

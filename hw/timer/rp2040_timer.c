@@ -46,7 +46,6 @@ static void rp2040_timer_fire(void *opaque)
 static void rp2040_timer_instance_init(Object *obj)
 {
     RP2040TimerState *state = RP2040_TIMER(obj);
-    rp2040_timer_reset(state, true);
 
     for (int i = 0; i < 4; ++i) {
         state->timers[i] = timer_new_ms(QEMU_CLOCK_VIRTUAL, rp2040_timer_fire,
@@ -135,19 +134,3 @@ static void rp2040_timer_register_types(void)
 }
 
 type_init(rp2040_timer_register_types);
-
-void rp2040_timer_reset(RP2040TimerState *state, bool reset_state)
-{
-    state->reset_done = !reset_state;
-    state->in_reset = reset_state;
-}
-
-int rp2040_timer_get_reset_state(RP2040TimerState *state)
-{
-    return state->in_reset;
-}
-
-int rp2040_timer_get_reset_done(RP2040TimerState *state)
-{
-    return state->reset_done;
-}

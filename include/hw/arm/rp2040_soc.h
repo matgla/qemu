@@ -67,6 +67,7 @@ struct RP2040State {
 
     RP2040ResetsState resets;
     RP2040GpioState gpio;
+    RP2040QspiIOState qspi_io;
     RP2040PadsState pads;
     RP2040TimerState timer;
     RP2040SSIState ssi;

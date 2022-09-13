@@ -98,43 +98,32 @@ static void rp2040_resets_instance_init(Object *obj)
 
 static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
 {
-    const int gpio_state = rp2040_gpio_get_reset_state(state->gpio)
-        << RP2040_RESETS_IO_BANK0;
-    const int qspi_state = rp2040_qspi_io_get_reset_state(state->gpio)
-        << RP2040_RESETS_IO_QSPI;
-    const int pads_state = rp2040_pads_get_reset_state(state->pads)
-        << RP2040_RESETS_PADS_BANK0;
-    const int pads_qspi_state = rp2040_qspi_pads_get_reset_state(state->pads)
-        << RP2040_RESETS_PADS_QSPI;
-    const int timer_state = rp2040_timer_get_reset_state(state->timer)
-        << RP2040_RESETS_TIMER;
-
     const uint32_t reset_state =
-        !state->done.adc << RP2040_RESETS_ADC |
-        !state->done.busctrl << RP2040_RESETS_BUSCTRL |
-        !state->done.dma << RP2040_RESETS_DMA |
-        !state->done.i2c0 << RP2040_RESETS_I2C0 |
-        !state->done.i2c1 << RP2040_RESETS_I2C1 |
-        gpio_state |
-        qspi_state |
-        !state->done.jtag << RP2040_RESETS_JTAG |
-        pads_state |
-        pads_qspi_state |
-        !state->done.pio0 << RP2040_RESETS_PIO0 |
-        !state->done.pio1 << RP2040_RESETS_PIO1 |
-        !state->done.pllsys << RP2040_RESETS_PLL_SYS |
-        !state->done.pllusb << RP2040_RESETS_PLL_USB |
-        !state->done.pwm << RP2040_RESETS_PWM |
-        !state->done.rtc << RP2040_RESETS_RTC |
-        !state->done.spi0 << RP2040_RESETS_SPI0 |
-        !state->done.spi1 << RP2040_RESETS_SPI1 |
-        !state->done.syscfg << RP2040_RESETS_SYSCFG |
-        !state->done.sysinfo << RP2040_RESETS_SYSINFO |
-        !state->done.tbman << RP2040_RESETS_TBMAN |
-        timer_state |
-        !state->done.uart0 << RP2040_RESETS_UART0 |
-        !state->done.uart1 << RP2040_RESETS_UART1 |
-        !state->done.usbctrl << RP2040_RESETS_USBCTRL;
+        resettable_is_in_reset(state->adc) << RP2040_RESETS_ADC |
+        resettable_is_in_reset(state->busctrl) << RP2040_RESETS_BUSCTRL |
+        resettable_is_in_reset(state->dma) << RP2040_RESETS_DMA |
+        resettable_is_in_reset(state->i2c0) << RP2040_RESETS_I2C0 |
+        resettable_is_in_reset(state->i2c1) << RP2040_RESETS_I2C1 |
+        resettable_is_in_reset(state->gpio) << RP2040_RESETS_IO_BANK0 |
+        resettable_is_in_reset(state->qspi_io) << RP2040_RESETS_IO_QSPI |
+        state->jtag << RP2040_RESETS_JTAG |
+        resettable_is_in_reset(state->pads) << RP2040_RESETS_PADS_BANK0 |
+        resettable_is_in_reset(state->qspi_pads) << RP2040_RESETS_PADS_QSPI |
+        resettable_is_in_reset(state->pio0) << RP2040_RESETS_PIO0 |
+        resettable_is_in_reset(state->pio1) << RP2040_RESETS_PIO1 |
+        resettable_is_in_reset(state->pllsys) << RP2040_RESETS_PLL_SYS |
+        resettable_is_in_reset(state->pllusb) << RP2040_RESETS_PLL_USB |
+        resettable_is_in_reset(state->pwm) << RP2040_RESETS_PWM |
+        resettable_is_in_reset(state->rtc) << RP2040_RESETS_RTC |
+        resettable_is_in_reset(state->spi0) << RP2040_RESETS_SPI0 |
+        resettable_is_in_reset(state->spi1) << RP2040_RESETS_SPI1 |
+        resettable_is_in_reset(state->syscfg) << RP2040_RESETS_SYSCFG |
+        resettable_is_in_reset(state->sysinfo) << RP2040_RESETS_SYSINFO |
+        resettable_is_in_reset(state->tbman) << RP2040_RESETS_TBMAN |
+        resettable_is_in_reset(state->timer) << RP2040_RESETS_TIMER |
+        resettable_is_in_reset(state->uart0) << RP2040_RESETS_UART0 |
+        resettable_is_in_reset(state->uart1) << RP2040_RESETS_UART1 |
+        resettable_is_in_reset(state->usbctrl) << RP2040_RESETS_USBCTRL;
     return reset_state;
 }
 
@@ -142,56 +131,12 @@ static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
 static uint64_t rp2040_resets_read(void *opaque, hwaddr offset, unsigned int size)
 {
     RP2040ResetsState *state = RP2040_RESETS(opaque);
-    int gpio_done = 0;
-    int qspi_done = 0;
-    int pads_done = 0;
-    int pads_qspi_done = 0;
-    int timer_done = 0;
-    uint32_t reset_done = 0;
 
     switch (offset) {
         case RP2040_RESETS_RESET:
             return rp2040_resets_get_state(state);
         case RP2040_RESETS_RESET_DONE:
-            gpio_done = rp2040_gpio_get_reset_done(state->gpio)
-                    << RP2040_RESETS_IO_BANK0;
-            qspi_done = rp2040_qspi_io_get_reset_done(state->gpio)
-                    << RP2040_RESETS_IO_QSPI;
-            pads_done = rp2040_pads_get_reset_done(state->pads)
-                    << RP2040_RESETS_PADS_BANK0;
-            pads_qspi_done =
-                rp2040_qspi_pads_get_reset_done(state->pads)
-                    << RP2040_RESETS_PADS_QSPI;
-            timer_done = rp2040_timer_get_reset_done(state->timer)
-                << RP2040_RESETS_TIMER;
-
-            reset_done =
-                state->done.adc << RP2040_RESETS_ADC |
-                state->done.busctrl << RP2040_RESETS_BUSCTRL |
-                state->done.dma << RP2040_RESETS_DMA |
-                state->done.i2c0 << RP2040_RESETS_I2C0 |
-                state->done.i2c1 << RP2040_RESETS_I2C1 |
-                gpio_done |
-                qspi_done |
-                state->done.jtag << RP2040_RESETS_JTAG |
-                pads_done |
-                pads_qspi_done |
-                state->done.pio0 << RP2040_RESETS_PIO0 |
-                state->done.pio1 << RP2040_RESETS_PIO1 |
-                state->done.pllsys << RP2040_RESETS_PLL_SYS |
-                state->done.pllusb << RP2040_RESETS_PLL_USB |
-                state->done.pwm << RP2040_RESETS_PWM |
-                state->done.rtc << RP2040_RESETS_RTC |
-                state->done.spi0 << RP2040_RESETS_SPI0 |
-                state->done.spi1 << RP2040_RESETS_SPI1 |
-                state->done.syscfg << RP2040_RESETS_SYSCFG |
-                state->done.sysinfo << RP2040_RESETS_SYSINFO |
-                state->done.tbman << RP2040_RESETS_TBMAN |
-                timer_done |
-                state->done.uart0 << RP2040_RESETS_UART0 |
-                state->done.uart1 << RP2040_RESETS_UART1 |
-                state->done.usbctrl << RP2040_RESETS_USBCTRL;
-        return reset_done;
+            return ~rp2040_resets_get_state(state);
     }
 
     qemu_log_mask(LOG_UNIMP, "%s: unimplemented register: 0x%03lx\n", __func__,
@@ -200,11 +145,15 @@ static uint64_t rp2040_resets_read(void *opaque, hwaddr offset, unsigned int siz
     return 0;
 }
 
-static void rp2040_reset_unimp(uint8_t *done, const char *name, uint32_t value)
+static void rp2040_perform_reset(Object *obj, bool is_reset)
 {
-    qemu_log_mask(LOG_UNIMP, "%s: called reset of %s with %x\n", __func__,
-                  name, value);
-    *done = !!!value;
+    if (is_reset) {
+        resettable_reset(obj, RESET_TYPE_COLD);
+    } else {
+        if (resettable_is_in_reset(obj)) {
+            resettable_release_reset(obj, RESET_TYPE_COLD);
+        }
+    }
 }
 
 static void rp2040_resets_write(void *opaque, hwaddr offset,
@@ -219,36 +168,58 @@ static void rp2040_resets_write(void *opaque, hwaddr offset,
         case RP2040_RESETS_RESET:
             reset_state = rp2040_resets_get_state(state);
             rp2040_write_to_register(access, &reset_state, value);
-            rp2040_reset_unimp(&state->done.adc, "adc", reset_state & RP2040_RESETS_ADC_MASK);
-            rp2040_reset_unimp(&state->done.busctrl, "busctrl", reset_state & RP2040_RESETS_BUSCTRL_MASK);
-            rp2040_reset_unimp(&state->done.dma, "dma", reset_state & RP2040_RESETS_DMA_MASK);
-            rp2040_reset_unimp(&state->done.i2c0, "i2c0", reset_state & RP2040_RESETS_I2C0_MASK);
-            rp2040_reset_unimp(&state->done.i2c1, "i2c1", reset_state & RP2040_RESETS_I2C1_MASK);
-            rp2040_gpio_reset(state->gpio,
+
+            rp2040_perform_reset(state->adc,
+                reset_state & RP2040_RESETS_ADC_MASK);
+            rp2040_perform_reset(state->busctrl,
+                reset_state & RP2040_RESETS_BUSCTRL_MASK);
+            rp2040_perform_reset(state->dma,
+                reset_state & RP2040_RESETS_DMA_MASK);
+            rp2040_perform_reset(state->i2c0,
+                reset_state & RP2040_RESETS_I2C0_MASK);
+            rp2040_perform_reset(state->i2c1,
+                reset_state & RP2040_RESETS_I2C1_MASK);
+            rp2040_perform_reset(state->gpio,
                 reset_state & RP2040_RESETS_IO_BANK0_MASK);
-            rp2040_qspi_io_reset(state->gpio,
+            rp2040_perform_reset(state->qspi_io,
                 reset_state & RP2040_RESETS_IO_QSPI_MASK);
-            rp2040_reset_unimp(&state->done.jtag, "jtag", reset_state & RP2040_RESETS_JTAG_MASK);
-            rp2040_pads_reset(state->pads,
+            state->jtag = !!(reset_state & RP2040_RESETS_JTAG_MASK);
+            // rp2040_perform_reset(state->jtag,
+            //     reset_state & RP2040_RESETS_JTAG_MASK);
+            rp2040_perform_reset(state->pads,
                 reset_state & RP2040_RESETS_PADS_BANK0_MASK);
-            rp2040_qspi_pads_reset(state->pads,
+            rp2040_perform_reset(state->qspi_pads,
                 reset_state & RP2040_RESETS_PADS_QSPI_MASK);
-            rp2040_reset_unimp(&state->done.pio0, "pio0", reset_state & RP2040_RESETS_PIO0_MASK);
-            rp2040_reset_unimp(&state->done.pio1, "pio1", reset_state & RP2040_RESETS_PIO1_MASK);
-            rp2040_reset_unimp(&state->done.pllsys, "pllsys", reset_state & RP2040_RESETS_PLL_SYS_MASK);
-            rp2040_reset_unimp(&state->done.pllusb, "pllusb", reset_state & RP2040_RESETS_PLL_USB_MASK);
-            rp2040_reset_unimp(&state->done.pwm, "pwm", reset_state & RP2040_RESETS_PWM_MASK);
-            rp2040_reset_unimp(&state->done.rtc, "rtc", reset_state & RP2040_RESETS_RTC_MASK);
-            rp2040_reset_unimp(&state->done.spi0, "spi0", reset_state & RP2040_RESETS_SPI0_MASK);
-            rp2040_reset_unimp(&state->done.spi1, "spi1", reset_state & RP2040_RESETS_SPI1_MASK);
-            rp2040_reset_unimp(&state->done.syscfg, "syscfg", reset_state & RP2040_RESETS_SYSCFG_MASK);
-            rp2040_reset_unimp(&state->done.sysinfo, "sysinfo", reset_state & RP2040_RESETS_SYSINFO_MASK);
-            rp2040_reset_unimp(&state->done.tbman, "tbman", reset_state & RP2040_RESETS_TBMAN_MASK);
-            rp2040_timer_reset(state->timer,
+            rp2040_perform_reset(state->pio0,
+                reset_state & RP2040_RESETS_PIO0_MASK);
+            rp2040_perform_reset(state->pio1,
+                reset_state & RP2040_RESETS_PIO1_MASK);
+            rp2040_perform_reset(state->pllsys,
+                reset_state & RP2040_RESETS_PLL_SYS_MASK);
+            rp2040_perform_reset(state->pllusb,
+                reset_state & RP2040_RESETS_PLL_USB_MASK);
+            rp2040_perform_reset(state->pwm,
+                reset_state & RP2040_RESETS_PWM_MASK);
+            rp2040_perform_reset(state->rtc,
+                reset_state & RP2040_RESETS_RTC_MASK);
+            rp2040_perform_reset(state->spi0,
+                reset_state & RP2040_RESETS_SPI0_MASK);
+            rp2040_perform_reset(state->spi1,
+                reset_state & RP2040_RESETS_SPI1_MASK);
+            rp2040_perform_reset(state->syscfg,
+                reset_state & RP2040_RESETS_SYSCFG_MASK);
+            rp2040_perform_reset(state->sysinfo,
+                reset_state & RP2040_RESETS_SYSINFO_MASK);
+            rp2040_perform_reset(state->tbman,
+                reset_state & RP2040_RESETS_TBMAN_MASK);
+            rp2040_perform_reset(state->timer,
                 reset_state & RP2040_RESETS_TIMER_MASK);
-            rp2040_reset_unimp(&state->done.uart0, "uart0", reset_state & RP2040_RESETS_UART0_MASK);
-            rp2040_reset_unimp(&state->done.uart1, "uart1", reset_state & RP2040_RESETS_UART1_MASK);
-            rp2040_reset_unimp(&state->done.usbctrl, "usbctrl", reset_state & RP2040_RESETS_USBCTRL_MASK);
+            rp2040_perform_reset(state->uart0,
+                reset_state & RP2040_RESETS_UART0_MASK);
+            rp2040_perform_reset(state->uart1,
+                reset_state & RP2040_RESETS_UART1_MASK);
+            rp2040_perform_reset(state->usbctrl,
+                reset_state & RP2040_RESETS_USBCTRL_MASK);
         return;
         case RP2040_RESETS_RESET_DONE:
             qemu_log_mask(LOG_GUEST_ERROR, "%s: read only register: 0x%03lx\n",

@@ -96,8 +96,8 @@ static void raspi_pico_instance_init(MachineState *machine)
     qdev_realize_and_unref(dev, BUS(soc->ssi.bus), &error_fatal);
 
     cs_line = qdev_get_gpio_in_named(dev, SSI_GPIO_CS, 0);
-    qdev_connect_gpio_out_named(DEVICE(&soc->gpio), "qspi-cs", 0, cs_line);
-    qemu_set_irq(soc->gpio.qspi_out[1], 0);
+    qdev_connect_gpio_out_named(DEVICE(&soc->qspi_io), "qspi-cs", 0, cs_line);
+    qemu_set_irq(soc->qspi_io.qspi_out[1], 0);
     soc->xip.blk = blk_by_legacy_dinfo(dinfo);
 }
 

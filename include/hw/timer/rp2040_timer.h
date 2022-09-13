@@ -41,18 +41,11 @@ OBJECT_DECLARE_SIMPLE_TYPE(RP2040TimerState, RP2040_TIMER)
 struct RP2040TimerState {
     SysBusDevice parent_obj;
 
-    bool in_reset;
-    bool reset_done;
-
     MemoryRegion mmio;
 
     QEMUTimer *timers[4];
     qemu_irq irqs[4];
     uint8_t timer_armed;
 };
-
-void rp2040_timer_reset(RP2040TimerState *state, bool reset_state);
-int rp2040_timer_get_reset_state(RP2040TimerState *state);
-int rp2040_timer_get_reset_done(RP2040TimerState *state);
 
 #endif /* RP2040_TIMER_H */

@@ -58,7 +58,7 @@ union RP2040SioDivCsr {
         uint32_t _reserved:30;
     };
     uint32_t value;
-};  
+};
 
 typedef union RP2040SioDivCsr RP2040SioDivCsr;
 
@@ -69,6 +69,7 @@ struct RP2040SioState {
 
     uint32_t cpuid;
     RP2040GpioState *gpio;
+    RP2040QspiIOState *qspi;
 
     RP2040SioFifoSt fifo_st;
     Fifo32 fifo_rx;

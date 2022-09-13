@@ -34,9 +34,6 @@
 
 static void rp2040_pads_instance_init(Object *obj)
 {
-    RP2040PadsState *state = RP2040_PADS(obj);
-    rp2040_pads_reset(state, true);
-    rp2040_qspi_pads_reset(state, true);
 }
 
 static uint64_t rp2040_pads_read(void *opaque, hwaddr offset, unsigned int size)
@@ -120,36 +117,3 @@ static void rp2040_pads_register_types(void)
 }
 
 type_init(rp2040_pads_register_types);
-
-void rp2040_pads_reset(RP2040PadsState *state, bool reset_state)
-{
-    state->pads_reset_done = !reset_state;
-    state->pads_in_reset = reset_state;
-}
-
-void rp2040_qspi_pads_reset(RP2040PadsState *state, bool reset_state)
-{
-    state->pads_qspi_reset_done = !reset_state;
-    state->pads_qspi_in_reset = reset_state;
-}
-
-int rp2040_pads_get_reset_state(RP2040PadsState *state)
-{
-    return state->pads_in_reset;
-}
-
-int rp2040_qspi_pads_get_reset_state(RP2040PadsState *state)
-{
-    return state->pads_qspi_in_reset;
-}
-
-int rp2040_pads_get_reset_done(RP2040PadsState *state)
-{
-    return state->pads_reset_done;
-}
-
-int rp2040_qspi_pads_get_reset_done(RP2040PadsState *state)
-{
-    return state->pads_qspi_reset_done;
-}
-

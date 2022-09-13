@@ -47,7 +47,9 @@ typedef struct {
 static void test_initialize_sut(RP2040SioTestsFixture *fixture, MemoryRegion *test_memory)
 {
     RP2040SioState *suts = fixture->sut;
-    Error **errp = &error_abort;
+    object_initialize_child(OBJECT(test_memory), "gpio", &fixture->gpio,
+        TYPE_RP2040_GPIO);
+    sysbus_realize(SYS_BUS_DEVICE(&fixture->gpio), &error_abort);
 
     for (int i = 0; i < RP2040_NUMBER_OF_SIO; ++i) {
         MemoryRegion *mr = NULL;
@@ -57,8 +59,8 @@ static void test_initialize_sut(RP2040SioTestsFixture *fixture, MemoryRegion *te
             TYPE_RP2040_SIO);
         qdev_prop_set_uint32(DEVICE(sut), "cpuid", i);
         object_property_set_link(OBJECT(sut), "gpio",
-            OBJECT(&fixture->gpio), errp);
-        sysbus_realize(SYS_BUS_DEVICE(sut), &error_fatal);
+            OBJECT(&fixture->gpio), &error_abort);
+        sysbus_realize(SYS_BUS_DEVICE(sut), &error_abort);
         mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(sut), 0);
         memory_region_add_subregion_overlap(test_memory,
             i * RP2040_NEXT_SIO_OFFSET, mr, 0);

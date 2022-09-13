@@ -119,13 +119,13 @@ static uint64_t rp2040_sio_read(void *opaque, hwaddr offset, unsigned int size)
             return state->cpuid;
         case RP2040_SIO_GPIO_HI_IN:
             /* TODO: it's not actually true, should be checked IN&OUT */
-            qspi_state = 
-                 state->gpio->qspi_status[0].infrompad << 0 |
-                 state->gpio->qspi_status[1].infrompad << 1 |
-                 state->gpio->qspi_status[2].infrompad << 2 |
-                 state->gpio->qspi_status[3].infrompad << 3 |
-                 state->gpio->qspi_status[4].infrompad << 4 |
-                 state->gpio->qspi_status[5].infrompad << 5;
+            qspi_state =
+                 state->qspi->qspi_status[0].infrompad << 0 |
+                 state->qspi->qspi_status[1].infrompad << 1 |
+                 state->qspi->qspi_status[2].infrompad << 2 |
+                 state->qspi->qspi_status[3].infrompad << 3 |
+                 state->qspi->qspi_status[4].infrompad << 4 |
+                 state->qspi->qspi_status[5].infrompad << 5;
             return qspi_state;
         case RP2040_SIO_FIFO_ST:
             state->fifo_st.vld = !fifo32_is_empty(&state->fifo_rx);
@@ -163,7 +163,7 @@ static uint64_t rp2040_sio_read(void *opaque, hwaddr offset, unsigned int size)
     return 0;
 }
 
-static void rp2040_sio_calculate_udiv(RP2040SioState *state) 
+static void rp2040_sio_calculate_udiv(RP2040SioState *state)
 {
     if (state->divisor != 0) {
         state->quotient = state->dividend / state->divisor;
@@ -172,7 +172,7 @@ static void rp2040_sio_calculate_udiv(RP2040SioState *state)
     state->div_csr.dirty = 1;
 }
 
-static void rp2040_sio_calculate_sdiv(RP2040SioState *state) 
+static void rp2040_sio_calculate_sdiv(RP2040SioState *state)
 {
     if (state->divisor != 0) {
         state->quotient = (int)state->dividend / (int)state->divisor;
@@ -265,9 +265,17 @@ static void rp2040_sio_realize(DeviceState *dev, Error **errp)
     state->div_csr.dirty = 0;
 }
 
+static void rp2040_sio_unrealize(DeviceState *dev)
+{
+    RP2040SioState *state = RP2040_SIO(dev);
+    fifo32_destroy(&state->fifo_rx);
+}
+
 static Property rp2040_sio_properties[] = {
     DEFINE_PROP_LINK("gpio", RP2040SioState, gpio, TYPE_RP2040_GPIO,
         RP2040GpioState *),
+    DEFINE_PROP_LINK("qspi", RP2040SioState, qspi, TYPE_RP2040_QSPI_IO,
+        RP2040QspiIOState *),
     DEFINE_PROP_UINT32("cpuid", RP2040SioState, cpuid, 0),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -279,6 +287,7 @@ static void rp2040_sio_class_init(ObjectClass *klass, void *data)
     device_class_set_props(dc, rp2040_sio_properties);
     dc->desc = "RP2040 SIO";
     dc->realize = rp2040_sio_realize;
+    dc->unrealize = rp2040_sio_unrealize;
 }
 
 static const TypeInfo rp2040_sio_type_info = {
