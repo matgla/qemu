@@ -112,12 +112,14 @@ static uint32_t spinlock[32];
 static uint64_t rp2040_sio_read(void *opaque, hwaddr offset, unsigned int size)
 {
     RP2040SioState *state = RP2040_SIO(opaque);
+    uint32_t qspi_state = 0;
+
     switch (offset) {
         case RP2040_SIO_CPUID:
             return state->cpuid;
         case RP2040_SIO_GPIO_HI_IN:
             /* TODO: it's not actually true, should be checked IN&OUT */
-            const uint32_t qspi_state =
+            qspi_state = 
                  state->gpio->qspi_status[0].infrompad << 0 |
                  state->gpio->qspi_status[1].infrompad << 1 |
                  state->gpio->qspi_status[2].infrompad << 2 |

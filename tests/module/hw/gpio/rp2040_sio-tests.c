@@ -25,6 +25,7 @@
 
 #include "qmodule_test.h"
 
+#include "hw/gpio/rp2040_gpio.h"
 #include "hw/gpio/rp2040_sio.h"
 #include "qapi/error.h"
 #include "hw/qdev-properties.h"
@@ -39,11 +40,14 @@
 #define RP2040_SIO_FIFO_RD 0x058
 
 typedef struct {
+    RP2040GpioState gpio;
     RP2040SioState sut[RP2040_NUMBER_OF_SIO];
 } RP2040SioTestsFixture;
 
-static void test_initialize_sut(RP2040SioState *suts, MemoryRegion *test_memory)
+static void test_initialize_sut(RP2040SioTestsFixture *fixture, MemoryRegion *test_memory)
 {
+    RP2040SioState *suts = fixture->sut;
+    Error **errp = &error_abort;
 
     for (int i = 0; i < RP2040_NUMBER_OF_SIO; ++i) {
         MemoryRegion *mr = NULL;
@@ -52,6 +56,8 @@ static void test_initialize_sut(RP2040SioState *suts, MemoryRegion *test_memory)
         object_initialize_child(OBJECT(test_memory), name, sut,
             TYPE_RP2040_SIO);
         qdev_prop_set_uint32(DEVICE(sut), "cpuid", i);
+        object_property_set_link(OBJECT(sut), "gpio",
+            OBJECT(&fixture->gpio), errp);
         sysbus_realize(SYS_BUS_DEVICE(sut), &error_fatal);
         mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(sut), 0);
         memory_region_add_subregion_overlap(test_memory,
@@ -280,7 +286,7 @@ static void rp2040_sio_tests_setup(RP2040SioTestsFixture *fixture,
     gconstpointer data)
 {
     qmt_initialize();
-    test_initialize_sut(fixture->sut, (MemoryRegion *)data);
+    test_initialize_sut(fixture, (MemoryRegion *)data);
 }
 
 static void rp2040_sio_tests_teardown(RP2040SioTestsFixture *fixture,

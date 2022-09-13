@@ -55,9 +55,10 @@ typedef union RP2040XOSCStatus RP2040XOSCStatus;
 
 static uint64_t rp2040_xosc_read(void *opaque, hwaddr offset, unsigned int size)
 {
+    RP2040XOSCStatus status;
     switch (offset) {
         case RP2040_XOSC_STATUS:
-            RP2040XOSCStatus status = {
+            status = (RP2040XOSCStatus){
                 .freq_range = 0,
                 .enabled = 1,
                 .badwrite = 0,

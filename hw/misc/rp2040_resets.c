@@ -142,26 +142,30 @@ static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
 static uint64_t rp2040_resets_read(void *opaque, hwaddr offset, unsigned int size)
 {
     RP2040ResetsState *state = RP2040_RESETS(opaque);
+    int gpio_done = 0;
+    int qspi_done = 0;
+    int pads_done = 0;
+    int pads_qspi_done = 0;
+    int timer_done = 0;
+    uint32_t reset_done = 0;
 
     switch (offset) {
         case RP2040_RESETS_RESET:
-            const uint32_t reset_state = rp2040_resets_get_state(state);
-            return reset_state;
+            return rp2040_resets_get_state(state);
         case RP2040_RESETS_RESET_DONE:
-            // fprintf(stderr, "Get reset done\n");
-            const int gpio_done = rp2040_gpio_get_reset_done(state->gpio)
+            gpio_done = rp2040_gpio_get_reset_done(state->gpio)
                     << RP2040_RESETS_IO_BANK0;
-            const int qspi_done = rp2040_qspi_io_get_reset_done(state->gpio)
+            qspi_done = rp2040_qspi_io_get_reset_done(state->gpio)
                     << RP2040_RESETS_IO_QSPI;
-            const int pads_done = rp2040_pads_get_reset_done(state->pads)
+            pads_done = rp2040_pads_get_reset_done(state->pads)
                     << RP2040_RESETS_PADS_BANK0;
-            const int pads_qspi_done =
+            pads_qspi_done =
                 rp2040_qspi_pads_get_reset_done(state->pads)
                     << RP2040_RESETS_PADS_QSPI;
-            const int timer_done = rp2040_timer_get_reset_done(state->timer)
+            timer_done = rp2040_timer_get_reset_done(state->timer)
                 << RP2040_RESETS_TIMER;
 
-            const uint32_t reset_done =
+            reset_done =
                 state->done.adc << RP2040_RESETS_ADC |
                 state->done.busctrl << RP2040_RESETS_BUSCTRL |
                 state->done.dma << RP2040_RESETS_DMA |
@@ -208,10 +212,12 @@ static void rp2040_resets_write(void *opaque, hwaddr offset,
 {
     RP2040ResetsState *state = RP2040_RESETS(opaque);
     RP2040AccessType access = rp2040_get_access_type(offset);
+    uint32_t reset_state = 0;
+
     offset = offset & 0x0fff;
     switch (offset) {
         case RP2040_RESETS_RESET:
-            uint32_t reset_state = rp2040_resets_get_state(state);
+            reset_state = rp2040_resets_get_state(state);
             rp2040_write_to_register(access, &reset_state, value);
             rp2040_reset_unimp(&state->done.adc, "adc", reset_state & RP2040_RESETS_ADC_MASK);
             rp2040_reset_unimp(&state->done.busctrl, "busctrl", reset_state & RP2040_RESETS_BUSCTRL_MASK);
