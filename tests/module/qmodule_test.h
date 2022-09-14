@@ -52,6 +52,8 @@ typedef struct QMTExpectationPlace QMTExpectationPlace;
 typedef struct QMTExpectations QMTExpectations;
 typedef struct QMTExpectationSet QMTExpectationSet;
 
+typedef void(*QMTExpectationOnCall)(void);
+
 typedef struct QMTArgument {
     int size;
     void *data;
@@ -278,6 +280,8 @@ void qmt_verify_and_release(void);
  * Used to be called within test case.
  */
 void qmt_verify_and_clear_expectations(void);
+
+void qmt_set_on_call(QMTExpectation *e, QMTExpectationOnCall on_call);
 
 
 /*********************************************/

@@ -44,6 +44,7 @@ struct QMTExpectation {
     QMTCompare *comparators;
     char **expected_argument_print;
     void *return_value;
+    QMTExpectationOnCall on_call;
 };
 
 
@@ -193,6 +194,7 @@ QMTExpectation *_qmt_expect_call(const char *name, const char *file,
     expectation.places_count = 1;
     expectation.return_value = NULL;
     expectation.argument_count = n;
+    expectation.on_call = NULL;
     expectation.comparators = g_new0(QMTCompare, n);
     expectation.expected_argument_print = g_new0(char *, n);
     va_list vaptr;
@@ -424,6 +426,9 @@ const void *_qmt_process_call(const char *name, const char *file, int line,
         if (qmt_expectation_match(e, arguments, n)) {
             ++e->matched_count;
             matched = true;
+            if (e->on_call) {
+                e->on_call();
+            }
             return e->return_value;
         }
     }
@@ -638,6 +643,11 @@ void qmt_verify_and_clear_expectations(void)
     g_free(expectations->sets);
     expectations->size = 0;
     expectations->sets = NULL;
+}
+
+void qmt_set_on_call(QMTExpectation *e, QMTExpectationOnCall on_call)
+{
+    e->on_call = on_call;
 }
 
 void qmt_verify_and_release(void)

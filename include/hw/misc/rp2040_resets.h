@@ -44,7 +44,7 @@ struct RP2040ResetsState {
     Object *i2c0;
     Object *i2c1;
     Object *gpio;
-    Object *qspi_io;
+    Object *qspi;
     bool jtag;
     Object *pads;
     Object *qspi_pads;

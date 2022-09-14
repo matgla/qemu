@@ -1,1 +1,2 @@
 subdir('gpio')
+subdir('misc')

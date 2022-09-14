@@ -29,6 +29,7 @@
 #include "qemu/log.h"
 #include "trace.h"
 
+#include "hw/qdev-properties.h"
 #include "hw/gpio/rp2040_gpio.h"
 #include "hw/misc/rp2040_pads.h"
 #include "hw/misc/rp2040_utils.h"
@@ -105,7 +106,7 @@ static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
         resettable_is_in_reset(state->i2c0) << RP2040_RESETS_I2C0 |
         resettable_is_in_reset(state->i2c1) << RP2040_RESETS_I2C1 |
         resettable_is_in_reset(state->gpio) << RP2040_RESETS_IO_BANK0 |
-        resettable_is_in_reset(state->qspi_io) << RP2040_RESETS_IO_QSPI |
+        resettable_is_in_reset(state->qspi) << RP2040_RESETS_IO_QSPI |
         state->jtag << RP2040_RESETS_JTAG |
         resettable_is_in_reset(state->pads) << RP2040_RESETS_PADS_BANK0 |
         resettable_is_in_reset(state->qspi_pads) << RP2040_RESETS_PADS_QSPI |
@@ -124,6 +125,8 @@ static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
         resettable_is_in_reset(state->uart0) << RP2040_RESETS_UART0 |
         resettable_is_in_reset(state->uart1) << RP2040_RESETS_UART1 |
         resettable_is_in_reset(state->usbctrl) << RP2040_RESETS_USBCTRL;
+    fprintf(stderr, "Get reset state: %x\n", reset_state);
+
     return reset_state;
 }
 
@@ -148,9 +151,12 @@ static uint64_t rp2040_resets_read(void *opaque, hwaddr offset, unsigned int siz
 static void rp2040_perform_reset(Object *obj, bool is_reset)
 {
     if (is_reset) {
-        resettable_reset(obj, RESET_TYPE_COLD);
+        if (!resettable_is_in_reset(obj)) {
+            resettable_assert_reset(obj, RESET_TYPE_COLD);
+        }
     } else {
         if (resettable_is_in_reset(obj)) {
+            fprintf(stderr, "Unreset\n");
             resettable_release_reset(obj, RESET_TYPE_COLD);
         }
     }
@@ -168,6 +174,7 @@ static void rp2040_resets_write(void *opaque, hwaddr offset,
         case RP2040_RESETS_RESET:
             reset_state = rp2040_resets_get_state(state);
             rp2040_write_to_register(access, &reset_state, value);
+            fprintf(stderr, "Reset state: %x, value: %lx\n", reset_state, value);
 
             rp2040_perform_reset(state->adc,
                 reset_state & RP2040_RESETS_ADC_MASK);
@@ -181,7 +188,7 @@ static void rp2040_resets_write(void *opaque, hwaddr offset,
                 reset_state & RP2040_RESETS_I2C1_MASK);
             rp2040_perform_reset(state->gpio,
                 reset_state & RP2040_RESETS_IO_BANK0_MASK);
-            rp2040_perform_reset(state->qspi_io,
+            rp2040_perform_reset(state->qspi,
                 reset_state & RP2040_RESETS_IO_QSPI_MASK);
             state->jtag = !!(reset_state & RP2040_RESETS_JTAG_MASK);
             // rp2040_perform_reset(state->jtag,
@@ -242,16 +249,100 @@ static void rp2040_resets_realize(DeviceState *dev, Error **errp)
 {
     RP2040ResetsState *state = RP2040_RESETS(dev);
 
+    if (!state->adc) {
+        error_report("RP2040 ADC not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->busctrl) {
+        error_report("RP2040 BUSCTRL not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->dma) {
+        error_report("RP2040 DMA not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->i2c0) {
+        error_report("RP2040 I2C0 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->i2c1) {
+        error_report("RP2040 I2C1 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
     if (!state->gpio) {
         error_report("RP2040 GPIO not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->qspi) {
+        error_report("RP2040 QSPI not connected to RP2040 RESETS");
         exit(EXIT_FAILURE);
     }
     if (!state->pads) {
         error_report("RP2040 PADS not connected to RP2040 RESETS");
         exit(EXIT_FAILURE);
     }
+    if (!state->qspi_pads) {
+        error_report("RP2040 QSPI PADS not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->pio0) {
+        error_report("RP2040 PIO0 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->pio1) {
+        error_report("RP2040 PIO1 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->pllsys) {
+        error_report("RP2040 PLLSYS not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->pllusb) {
+        error_report("RP2040 PLLUSB not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->pwm) {
+        error_report("RP2040 PWM not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->rtc) {
+        error_report("RP2040 RTC not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->spi0) {
+        error_report("RP2040 SIO0 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->spi1) {
+        error_report("RP2040 SIO1 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->syscfg) {
+        error_report("RP2040 SYSCFG not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->sysinfo) {
+        error_report("RP2040 SYSINFO not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->tbman) {
+        error_report("RP2040 TBMAN not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
     if (!state->timer) {
         error_report("RP2040 TIMER not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->uart0) {
+        error_report("RP2040 UART0 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->uart1) {
+        error_report("RP2040 UART1 not connected to RP2040 RESETS");
+        exit(EXIT_FAILURE);
+    }
+    if (!state->usbctrl) {
+        error_report("RP2040 USBCTRL not connected to RP2040 RESETS");
         exit(EXIT_FAILURE);
     }
 
@@ -260,10 +351,46 @@ static void rp2040_resets_realize(DeviceState *dev, Error **errp)
         "mmio", RP2040_RESETS_REGISTER_SIZE);
 }
 
+static Property rp2040_resets_properties[] = {
+    DEFINE_PROP_LINK("adc", RP2040ResetsState, adc, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("busctrl", RP2040ResetsState, busctrl, TYPE_OBJECT,
+                     Object *),
+    DEFINE_PROP_LINK("dma", RP2040ResetsState, dma, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("i2c0", RP2040ResetsState, i2c0, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("i2c1", RP2040ResetsState, i2c1, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("gpio", RP2040ResetsState, gpio, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("qspi", RP2040ResetsState, qspi, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("pads", RP2040ResetsState, pads, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("qspi_pads", RP2040ResetsState, qspi_pads, TYPE_OBJECT,
+                     Object *),
+    DEFINE_PROP_LINK("pio0", RP2040ResetsState, pio0, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("pio1", RP2040ResetsState, pio1, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("pllsys", RP2040ResetsState, pllsys, TYPE_OBJECT,
+                     Object *),
+    DEFINE_PROP_LINK("pllusb", RP2040ResetsState, pllusb, TYPE_OBJECT,
+                     Object *),
+    DEFINE_PROP_LINK("pwm", RP2040ResetsState, pwm, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("rtc", RP2040ResetsState, rtc, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("spi0", RP2040ResetsState, spi0, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("spi1", RP2040ResetsState, spi1, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("syscfg", RP2040ResetsState, syscfg, TYPE_OBJECT,
+                     Object *),
+    DEFINE_PROP_LINK("sysinfo", RP2040ResetsState, sysinfo, TYPE_OBJECT,
+                     Object *),
+    DEFINE_PROP_LINK("tbman", RP2040ResetsState, tbman, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("timer", RP2040ResetsState, timer, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("uart0", RP2040ResetsState, uart0, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("uart1", RP2040ResetsState, uart1, TYPE_OBJECT, Object *),
+    DEFINE_PROP_LINK("usbctrl", RP2040ResetsState, usbctrl, TYPE_OBJECT,
+                     Object *),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void rp2040_resets_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
+    device_class_set_props(dc, rp2040_resets_properties);
     dc->desc = "RP2040 Resets";
     dc->realize = rp2040_resets_realize;
 }
