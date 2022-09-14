@@ -65,7 +65,7 @@ struct RP2040State {
     ARMv7MState armv6m[RP2040_SOC_NUMBER_OF_CORES];
 
 
-    RP2040ResetsState resets;
+    RP2040ResetsState* resets;
     RP2040GpioState gpio;
     RP2040QspiIOState qspi_io;
     RP2040PadsState pads;

@@ -31,38 +31,10 @@
 #include "qom/object.h"
 
 #define TYPE_RP2040_RESETS "rp2040.resets"
-OBJECT_DECLARE_SIMPLE_TYPE(RP2040ResetsState, RP2040_RESETS)
 
-struct RP2040ResetsState {
-    SysBusDevice parent_obj;
+struct RP2040ResetsState;
+typedef struct RP2040ResetsState RP2040ResetsState;
 
-    MemoryRegion mmio;
-
-    Object *adc;
-    Object *busctrl;
-    Object *dma;
-    Object *i2c0;
-    Object *i2c1;
-    Object *gpio;
-    Object *qspi;
-    bool jtag;
-    Object *pads;
-    Object *qspi_pads;
-    Object *pio0;
-    Object *pio1;
-    Object *pllsys;
-    Object *pllusb;
-    Object *pwm;
-    Object *rtc;
-    Object *spi0;
-    Object *spi1;
-    Object *syscfg;
-    Object *sysinfo;
-    Object *tbman;
-    Object *timer;
-    Object *uart0;
-    Object *uart1;
-    Object *usbctrl;
-};
+RP2040ResetsState *rp2040_resets_create(void);
 
 #endif /* RP2040_RESETS_H */

@@ -92,6 +92,40 @@
 #define RP2040_RESETS_USBCTRL           24
 #define RP2040_RESETS_USBCTRL_MASK      0x1000000
 
+OBJECT_DECLARE_SIMPLE_TYPE(RP2040ResetsState, RP2040_RESETS)
+
+struct RP2040ResetsState {
+    SysBusDevice parent_obj;
+
+    MemoryRegion mmio;
+
+    Object *adc;
+    Object *busctrl;
+    Object *dma;
+    Object *i2c0;
+    Object *i2c1;
+    Object *gpio;
+    Object *qspi;
+    bool jtag;
+    Object *pads;
+    Object *qspi_pads;
+    Object *pio0;
+    Object *pio1;
+    Object *pllsys;
+    Object *pllusb;
+    Object *pwm;
+    Object *rtc;
+    Object *spi0;
+    Object *spi1;
+    Object *syscfg;
+    Object *sysinfo;
+    Object *tbman;
+    Object *timer;
+    Object *uart0;
+    Object *uart1;
+    Object *usbctrl;
+};
+
 
 static void rp2040_resets_instance_init(Object *obj)
 {
@@ -409,3 +443,10 @@ static void rp2040_resets_register_types(void)
 }
 
 type_init(rp2040_resets_register_types);
+
+RP2040ResetsState *rp2040_resets_create(void)
+{
+    DeviceState *d = qdev_new(TYPE_RP2040_RESETS);
+    object_initialize(d, sizeof(RP2040ResetsState), TYPE_RP2040_RESETS);
+    return RP2040_RESETS(d);
+}

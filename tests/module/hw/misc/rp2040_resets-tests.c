@@ -41,7 +41,7 @@ struct ObjectMock {
 #define NUMBER_OF_DEVICES 24
 
 typedef struct {
-    RP2040ResetsState sut;
+    RP2040ResetsState* sut;
     ObjectMock mock[NUMBER_OF_DEVICES];
 } RP2040ResetsTestsFixture;
 

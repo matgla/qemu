@@ -151,7 +151,10 @@ static void rp2040_soc_init(Object *obj)
 
     /* peripherals initialization */
     object_initialize_child(obj, "pads", &s->pads, TYPE_RP2040_PADS);
-    object_initialize_child(obj, "resets", &s->resets, TYPE_RP2040_RESETS);
+
+    s->resets = rp2040_resets_create();
+    object_property_add_child(obj, "resets", OBJECT(s->resets));
+
     object_initialize_child(obj, "timer", &s->timer, TYPE_RP2040_TIMER);
     object_initialize_child(obj, "ssi", &s->ssi, TYPE_RP2040_SSI);
     object_initialize_child(obj, "xip", &s->xip, TYPE_RP2040_XIP);
@@ -243,10 +246,10 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     create_unimplemented_device("SRAM3 BASE", RP2040_SRAM3_BASE, 0x10000);
     o = OBJECT(create_unimplemented_device("SYSINFO",
                                RP2040_SYSINFO_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "sysinfo", o, errp);
+    object_property_set_link(OBJECT(s->resets), "sysinfo", o, errp);
     o = OBJECT(create_unimplemented_device("SYSCFG",
                               RP2040_SYSCFG_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "syscfg", o, errp);
+    object_property_set_link(OBJECT(s->resets), "syscfg", o, errp);
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->clocks), errp)) {
         return;
@@ -279,58 +282,58 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
 
     o = OBJECT(create_unimplemented_device("BUSCTRL",
         RP2040_BUSCTRL_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "busctrl", o, errp);
+    object_property_set_link(OBJECT(s->resets), "busctrl", o, errp);
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pll_sys), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->pll_sys), 0, RP2040_PLL_SYS_BASE);
     o = OBJECT(&s->pll_sys);
-    object_property_set_link(OBJECT(&s->resets), "pllsys", o, errp);
+    object_property_set_link(OBJECT(s->resets), "pllsys", o, errp);
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pll_usb), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->pll_usb), 0, RP2040_PLL_USB_BASE);
     o = OBJECT(&s->pll_usb);
-    object_property_set_link(OBJECT(&s->resets), "pllusb", o, errp);
+    object_property_set_link(OBJECT(s->resets), "pllusb", o, errp);
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->uart0), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->uart0), 0, RP2040_UART0_BASE);
     o = OBJECT(&s->uart0);
-    object_property_set_link(OBJECT(&s->resets), "uart0", o, errp);
+    object_property_set_link(OBJECT(s->resets), "uart0", o, errp);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->uart1), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->uart1), 0, RP2040_UART1_BASE);
     o = OBJECT(&s->uart1);
-    object_property_set_link(OBJECT(&s->resets), "uart1", o, errp);
+    object_property_set_link(OBJECT(s->resets), "uart1", o, errp);
 
     o = OBJECT(create_unimplemented_device("SPI0",
         RP2040_SPI0_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "spi0", o, errp);
+    object_property_set_link(OBJECT(s->resets), "spi0", o, errp);
 
     o = OBJECT(create_unimplemented_device("SPI1",
         RP2040_SPI1_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "spi1", o, errp);
+    object_property_set_link(OBJECT(s->resets), "spi1", o, errp);
 
     o = OBJECT(create_unimplemented_device("I2C0",
         RP2040_I2C0_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "i2c0", o, errp);
+    object_property_set_link(OBJECT(s->resets), "i2c0", o, errp);
 
     o = OBJECT(create_unimplemented_device("I2C1",
         RP2040_I2C1_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "i2c1", o, errp);
+    object_property_set_link(OBJECT(s->resets), "i2c1", o, errp);
 
     o = OBJECT(create_unimplemented_device("ADC",
         RP2040_ADC_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "adc", o, errp);
+    object_property_set_link(OBJECT(s->resets), "adc", o, errp);
 
     o = OBJECT(create_unimplemented_device("PWM",
         RP2040_PWM_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "pwm", o, errp);
+    object_property_set_link(OBJECT(s->resets), "pwm", o, errp);
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->timer), errp)) {
         return;
@@ -341,7 +344,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         RP2040_WATCHDOG_BASE, 0x4000);
     o = OBJECT(create_unimplemented_device("RTC",
         RP2040_RTC_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "rtc", o, errp);
+    object_property_set_link(OBJECT(s->resets), "rtc", o, errp);
 
     create_unimplemented_device("ROSC",
         RP2040_ROSC_BASE, 0x4000);
@@ -349,25 +352,25 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         RP2040_VREG_AND_CHIP_RESET_BASE, 0x8000);
     o = OBJECT(create_unimplemented_device("TBMAN",
         RP2040_TBMAN_BASE, 0x4000));
-    object_property_set_link(OBJECT(&s->resets), "tbman", o, errp);
+    object_property_set_link(OBJECT(s->resets), "tbman", o, errp);
 
     o = OBJECT(create_unimplemented_device("DMA",
         RP2040_DMA_BASE, 0x100000));
-    object_property_set_link(OBJECT(&s->resets), "dma", o, errp);
+    object_property_set_link(OBJECT(s->resets), "dma", o, errp);
 
     o = OBJECT(create_unimplemented_device("USB CTRL",
         RP2040_USBCTRL_BASE, 0x100000));
-    object_property_set_link(OBJECT(&s->resets), "usbctrl", o, errp);
+    object_property_set_link(OBJECT(s->resets), "usbctrl", o, errp);
 
     create_unimplemented_device("USB CTRL REGS",
         RP2040_USBCTRL_REGS_BASE, 0x100000);
     o = OBJECT(create_unimplemented_device("PIO0",
         RP2040_PIO0_BASE, 0x100000));
-    object_property_set_link(OBJECT(&s->resets), "pio0", o, errp);
+    object_property_set_link(OBJECT(s->resets), "pio0", o, errp);
 
     o = OBJECT(create_unimplemented_device("PIO1",
         RP2040_PIO1_BASE, 0x100000));
-    object_property_set_link(OBJECT(&s->resets), "pio1", o, errp);
+    object_property_set_link(OBJECT(s->resets), "pio1", o, errp);
 
     create_unimplemented_device("XIP AUX",
         RP2040_XIP_AUX_BASE, 0x100000);
@@ -421,24 +424,24 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     }
 
     o = OBJECT(&s->gpio);
-    object_property_set_link(OBJECT(&s->resets), "gpio", o, errp);
+    object_property_set_link(OBJECT(s->resets), "gpio", o, errp);
 
     o = OBJECT(&s->qspi_io);
-    object_property_set_link(OBJECT(&s->resets), "qspi", o, errp);
+    object_property_set_link(OBJECT(s->resets), "qspi", o, errp);
 
     o = OBJECT(&s->pads);
-    object_property_set_link(OBJECT(&s->resets), "pads", o, errp);
+    object_property_set_link(OBJECT(s->resets), "pads", o, errp);
 
     o = OBJECT(&s->pads);
-    object_property_set_link(OBJECT(&s->resets), "qspi_pads", o, errp);
+    object_property_set_link(OBJECT(s->resets), "qspi_pads", o, errp);
 
     o = OBJECT(&s->timer);
-    object_property_set_link(OBJECT(&s->resets), "timer", o, errp);
+    object_property_set_link(OBJECT(s->resets), "timer", o, errp);
 
-    if (!sysbus_realize(SYS_BUS_DEVICE(&s->resets), errp)) {
+    if (!sysbus_realize(SYS_BUS_DEVICE(s->resets), errp)) {
         return;
     }
-    sysbus_mmio_map(SYS_BUS_DEVICE(&s->resets), 0, RP2040_RESETS_BASE);
+    sysbus_mmio_map(SYS_BUS_DEVICE(s->resets), 0, RP2040_RESETS_BASE);
 }
 
 static Property rp2040_soc_properties[] = {
