@@ -383,6 +383,9 @@ static void rp2040_resets_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(state), &state->mmio);
     memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_resets_io, state,
         "mmio", RP2040_RESETS_REGISTER_SIZE);
+
+    /* Put everything in reset state */
+    resettable_assert_reset(state->uart0, RESET_TYPE_COLD);
 }
 
 static Property rp2040_resets_properties[] = {

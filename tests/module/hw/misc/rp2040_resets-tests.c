@@ -45,16 +45,6 @@ typedef struct {
     ObjectMock mock[NUMBER_OF_DEVICES];
 } RP2040ResetsTestsFixture;
 
-static void print_on_enter(void)
-{
-    fprintf(stderr, "OnEnter\n");
-}
-
-static void print_on_hold(void)
-{
-    fprintf(stderr, "OnHold\n");
-}
-
 static QMT_DEFINE_FAKE_VOID(object_mock_reset_enter, (Object *, obj),
                                                      (ResetType, type));
 static QMT_DEFINE_FAKE_VOID(object_mock_reset_hold, (Object *, obj));
@@ -90,8 +80,7 @@ static void test_initialize_sut(RP2040ResetsTestsFixture *fixture,
                                 MemoryRegion *test_memory)
 {
     MemoryRegion *mr;
-    object_initialize_child(OBJECT(test_memory), "resets", &fixture->sut,
-        TYPE_RP2040_RESETS);
+    fixture->sut = rp2040_resets_create();
 
     for (int i = 0; i < NUMBER_OF_DEVICES; ++i) {
         g_autofree char *name = g_strdup_printf("object_mock[%d]", i);
@@ -101,69 +90,67 @@ static void test_initialize_sut(RP2040ResetsTestsFixture *fixture,
     }
 
 
-    object_property_set_link(OBJECT(&fixture->sut), "adc",
+    object_property_set_link(OBJECT(fixture->sut), "adc",
                              OBJECT(&fixture->mock[0]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "busctrl",
+    object_property_set_link(OBJECT(fixture->sut), "busctrl",
                              OBJECT(&fixture->mock[1]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "dma",
+    object_property_set_link(OBJECT(fixture->sut), "dma",
                              OBJECT(&fixture->mock[2]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "i2c0",
+    object_property_set_link(OBJECT(fixture->sut), "i2c0",
                              OBJECT(&fixture->mock[3]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "i2c1",
+    object_property_set_link(OBJECT(fixture->sut), "i2c1",
                              OBJECT(&fixture->mock[4]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "gpio",
+    object_property_set_link(OBJECT(fixture->sut), "gpio",
                              OBJECT(&fixture->mock[5]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "qspi",
+    object_property_set_link(OBJECT(fixture->sut), "qspi",
                              OBJECT(&fixture->mock[6]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "pads",
+    object_property_set_link(OBJECT(fixture->sut), "pads",
                              OBJECT(&fixture->mock[7]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "qspi_pads",
+    object_property_set_link(OBJECT(fixture->sut), "qspi_pads",
                              OBJECT(&fixture->mock[8]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "pio0",
+    object_property_set_link(OBJECT(fixture->sut), "pio0",
                              OBJECT(&fixture->mock[9]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "pio1",
+    object_property_set_link(OBJECT(fixture->sut), "pio1",
                              OBJECT(&fixture->mock[10]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "pllsys",
+    object_property_set_link(OBJECT(fixture->sut), "pllsys",
                              OBJECT(&fixture->mock[11]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "pllusb",
+    object_property_set_link(OBJECT(fixture->sut), "pllusb",
                              OBJECT(&fixture->mock[12]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "pwm",
+    object_property_set_link(OBJECT(fixture->sut), "pwm",
                              OBJECT(&fixture->mock[13]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "rtc",
+    object_property_set_link(OBJECT(fixture->sut), "rtc",
                              OBJECT(&fixture->mock[14]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "spi0",
+    object_property_set_link(OBJECT(fixture->sut), "spi0",
                              OBJECT(&fixture->mock[15]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "spi1",
+    object_property_set_link(OBJECT(fixture->sut), "spi1",
                              OBJECT(&fixture->mock[16]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "syscfg",
+    object_property_set_link(OBJECT(fixture->sut), "syscfg",
                              OBJECT(&fixture->mock[17]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "sysinfo",
+    object_property_set_link(OBJECT(fixture->sut), "sysinfo",
                              OBJECT(&fixture->mock[18]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "tbman",
+    object_property_set_link(OBJECT(fixture->sut), "tbman",
                              OBJECT(&fixture->mock[19]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "timer",
+    object_property_set_link(OBJECT(fixture->sut), "timer",
                              OBJECT(&fixture->mock[20]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "uart0",
+    object_property_set_link(OBJECT(fixture->sut), "uart0",
                              OBJECT(&fixture->mock[21]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "uart1",
+    object_property_set_link(OBJECT(fixture->sut), "uart1",
                              OBJECT(&fixture->mock[22]), &error_abort);
-    object_property_set_link(OBJECT(&fixture->sut), "usbctrl",
+    object_property_set_link(OBJECT(fixture->sut), "usbctrl",
                              OBJECT(&fixture->mock[23]), &error_abort);
 
 
     for (int i = 0; i < NUMBER_OF_DEVICES; ++i) {
-        QMTExpectation *e = QMT_EXPECT_CALL(object_mock_reset_enter,
-                                            qmt_expect_ptr(&fixture->mock[i]),
-                                            qmt_expect_int(RESET_TYPE_COLD));
-        qmt_set_on_call(e, print_on_enter);
-        e = QMT_EXPECT_CALL(object_mock_reset_hold,
-                            qmt_expect_ptr(&fixture->mock[i]));
-        qmt_set_on_call(e, print_on_hold);
+        QMT_EXPECT_CALL(object_mock_reset_enter,
+                        qmt_expect_ptr(&fixture->mock[i]),
+                        qmt_expect_int(RESET_TYPE_COLD));
+        QMT_EXPECT_CALL(object_mock_reset_hold,
+                        qmt_expect_ptr(&fixture->mock[i]));
     }
 
-    sysbus_realize(SYS_BUS_DEVICE(&fixture->sut), &error_abort);
+    sysbus_realize(SYS_BUS_DEVICE(fixture->sut), &error_abort);
 
-    mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&fixture->sut), 0);
+    mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(fixture->sut), 0);
     memory_region_add_subregion_overlap(test_memory, 0, mr, 0);
 }
 
