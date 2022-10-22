@@ -393,6 +393,7 @@ void run_on_cpu(CPUState *cpu, run_on_cpu_func func, run_on_cpu_data data)
 
 static void qemu_cpu_stop(CPUState *cpu, bool exit)
 {
+    fprintf(stderr, "CPU stop\n");
     g_assert(qemu_cpu_is_self(cpu));
     cpu->stop = false;
     cpu->stopped = true;
@@ -567,12 +568,16 @@ void pause_all_vcpus(void)
      */
     replay_mutex_unlock();
 
+    fprintf(stderr, "Closing CPUs\n");
     while (!all_vcpus_paused()) {
         qemu_cond_wait(&qemu_pause_cond, &qemu_global_mutex);
         CPU_FOREACH(cpu) {
+            fprintf(stderr, "CPU kick\n");
             qemu_cpu_kick(cpu);
         }
     }
+    fprintf(stderr, "Closing CPUs: finished\n");
+
 
     qemu_mutex_unlock_iothread();
     replay_mutex_lock();

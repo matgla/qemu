@@ -46,11 +46,23 @@ static void rp2040_timer_fire(void *opaque)
 static void rp2040_timer_instance_init(Object *obj)
 {
     RP2040TimerState *state = RP2040_TIMER(obj);
+    fprintf(stderr, "Timer instance called\n");
 
     for (int i = 0; i < 4; ++i) {
         state->timers[i] = timer_new_ms(QEMU_CLOCK_VIRTUAL, rp2040_timer_fire,
                                         obj);
         sysbus_init_irq(SYS_BUS_DEVICE(obj), &state->irqs[i]);
+    }
+}
+
+static void rp2040_timer_instance_finalize(Object *obj)
+{
+    RP2040TimerState *state = RP2040_TIMER(obj);
+
+    fprintf(stderr, "Finalize called\n");
+
+    for (int i = 0; i < 4; ++i) {
+        timer_free(state->timers[i]);
     }
 }
 
@@ -126,6 +138,7 @@ static const TypeInfo rp2040_timer_type_info = {
     .class_init     = rp2040_timer_class_init,
     .instance_size  = sizeof(RP2040TimerState),
     .instance_init  = rp2040_timer_instance_init,
+    .instance_finalize = rp2040_timer_instance_finalize,
 };
 
 static void rp2040_timer_register_types(void)

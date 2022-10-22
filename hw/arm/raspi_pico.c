@@ -72,12 +72,11 @@ static void raspi_pico_instance_init(MachineState *machine)
 {
     RaspiPicoMachineState *machine_state = RASPI_PICO_MACHINE(machine);
     RP2040State *soc = &machine_state->soc;
-    Error **errp = &error_fatal;
+    Error **errp = &error_abort;
     qemu_irq cs_line;
     MemoryRegion *system_memory = get_system_memory();
-    DeviceState *dev = qdev_new("w25q80");
-    DriveInfo *dinfo = drive_get_by_index(IF_MTD, 0);
-    // RP2040SSIState *ssi = &state->ssi;
+    DeviceState *flash = qdev_new("w25q80");
+    DriveInfo *dinfo = drive_get(IF_MTD, 0, 0);
 
     if (!dinfo)
     {
@@ -88,17 +87,17 @@ static void raspi_pico_instance_init(MachineState *machine)
     object_initialize_child(OBJECT(machine), "rp2040", soc, TYPE_RP2040_SOC);
     object_property_set_link(OBJECT(soc), "memory", OBJECT(system_memory),
         errp);
+    qdev_prop_set_drive(DEVICE(soc), "flash_drive", blk_by_legacy_dinfo(dinfo));
     raspi_pico_initialize_clock(machine, DEVICE(soc));
 
     /* Trigger SOC realization procedure */
     sysbus_realize_and_unref(SYS_BUS_DEVICE(DEVICE(soc)), errp);
-    qdev_prop_set_drive(dev, "drive", blk_by_legacy_dinfo(dinfo));
-    qdev_realize_and_unref(dev, BUS(soc->ssi.bus), &error_fatal);
+    qdev_prop_set_drive(flash, "drive", blk_by_legacy_dinfo(dinfo));
+    qdev_realize_and_unref(flash, BUS(soc->ssi.bus), &error_fatal);
 
-    cs_line = qdev_get_gpio_in_named(dev, SSI_GPIO_CS, 0);
+    cs_line = qdev_get_gpio_in_named(flash, SSI_GPIO_CS, 0);
     qdev_connect_gpio_out_named(DEVICE(&soc->qspi_io), "qspi-cs", 0, cs_line);
     qemu_set_irq(soc->qspi_io.qspi_out[1], 0);
-    soc->xip.blk = blk_by_legacy_dinfo(dinfo);
 }
 
 static void raspi_pico_class_init(ObjectClass *klass, void *data)

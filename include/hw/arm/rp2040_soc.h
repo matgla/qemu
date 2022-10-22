@@ -70,7 +70,7 @@ struct RP2040State {
     RP2040QspiIOState qspi_io;
     RP2040PadsState pads;
     RP2040TimerState timer;
-    RP2040SSIState ssi;
+    Rp2040SsiState ssi;
     RP2040XipState xip;
     RP2040XOSCState xosc;
     RP2040ClocksState clocks;
@@ -95,6 +95,8 @@ struct RP2040State {
 
     Clock *sysclk;
     Clock *refclk;
+
+    BlockBackend *flash_drive;
 };
 
 #endif

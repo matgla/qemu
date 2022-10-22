@@ -25,6 +25,7 @@
 #include "hw/arm/rp2040_soc.h"
 
 #include "qemu/osdep.h"
+#include "hw/block/block.h"
 #include "hw/qdev-clock.h"
 #include "exec/address-spaces.h"
 #include "hw/misc/unimp.h"
@@ -188,6 +189,12 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         return;
     }
 
+    if (!s->flash_drive) {
+        error_setg(errp, "Flash drive not wired to RP2040 SoC");
+        return;
+    }
+
+
     memory_region_add_subregion_overlap(&s->container, 0, s->system_memory,
         1);
 
@@ -221,10 +228,11 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
     memory_region_add_subregion(&s->container, RP2040_SRAM5_BASE,
         &s->sram5);
 
+
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->xip), errp)) {
         return;
     }
-    sysbus_mmio_map(SYS_BUS_DEVICE(&s->xip), 0, RP2040_XIP_BASE);
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->xip), 0, RP2040_XIP_CTRL_BASE);
 
     create_unimplemented_device("XIP NOALLOC", RP2040_XIP_NOALLOC_BASE,
         0x01000000);
@@ -232,7 +240,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
         0x01000000);
     create_unimplemented_device("XIP NOCACHE", RP2040_XIP_NOCACHE_NOALLOC_BASE,
         0x01000000);
-    create_unimplemented_device("XIP CTRL", RP2040_XIP_CTRL_BASE, 0x4000);
+    // create_unimplemented_device("XIP CTRL", RP2040_XIP_CTRL_BASE, 0x4000);
     create_unimplemented_device("XIP SRAM", RP2040_XIP_SRAM_BASE, 0x4000);
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ssi), errp)) {
@@ -447,6 +455,7 @@ static void rp2040_soc_realize(DeviceState *dev_soc, Error **errp)
 static Property rp2040_soc_properties[] = {
     DEFINE_PROP_LINK("memory", RP2040State, system_memory, TYPE_MEMORY_REGION,
         MemoryRegion *),
+    DEFINE_PROP_DRIVE("flash_drive", RP2040State, flash_drive),
     DEFINE_PROP_END_OF_LIST(),
 };
 

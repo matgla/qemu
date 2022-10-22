@@ -25,10 +25,14 @@
 #include "hw/misc/rp2040_xip.h"
 
 #include "qemu/log.h"
+#include "hw/ssi/ssi.h"
+#include "hw/block/block.h"
+#include "qapi/error.h"
 #include "trace.h"
 #include "hw/misc/rp2040_utils.h"
 #include "qemu/units.h"
 #include "sysemu/block-backend.h"
+#include "hw/loader.h"
 
 
 #define RP2040_XIP_SIZE (16 * MiB)
@@ -37,42 +41,64 @@ static void rp2040_xip_instance_init(Object *obj)
 {
 }
 
-static uint64_t rp2040_xip_read(void *opaque, hwaddr offset, unsigned int size)
-{
-    RP2040XipState *state = RP2040_XIP(opaque);
-    uint32_t data;
-    blk_pread(state->blk, offset, size, &data, 0);
-    return data;
-}
+// static uint64_t rp2040_xip_read(void *opaque, hwaddr offset, unsigned int size)
+// {
+//     // RP2040XipState *state = RP2040_XIP(opaque);
+//     // uint32_t data;
+//     // blk_pread(state->blk, offset, size, &data, 0);
+//     return 0;
+// }
 
 
-static void rp2040_xip_write(void *opaque, hwaddr offset,
-                              uint64_t value, unsigned int size)
-{
-    qemu_log_mask(LOG_GUEST_ERROR, "%s: XIP is read only", __func__);
-}
+// static void rp2040_xip_write(void *opaque, hwaddr offset,
+//                               uint64_t value, unsigned int size)
+// {
+//     qemu_log_mask(LOG_GUEST_ERROR, "%s: XIP is read only", __func__);
+// }
 
-static const MemoryRegionOps rp2040_xip_io = {
-    .read = rp2040_xip_read,
-    .write = rp2040_xip_write,
-    .endianness = DEVICE_LITTLE_ENDIAN,
-    .impl.min_access_size = 1,
-    .impl.max_access_size = 4,
-};
+// static const MemoryRegionOps rp2040_xip_io = {
+//     .read = rp2040_xip_read,
+//     .write = rp2040_xip_write,
+//     .endianness = DEVICE_LITTLE_ENDIAN,
+//     .impl.min_access_size = 1,
+//     .impl.max_access_size = 4,
+// };
 
 static void rp2040_xip_realize(DeviceState *dev, Error **errp)
 {
-    RP2040XipState *state = RP2040_XIP(dev);
-    sysbus_init_mmio(SYS_BUS_DEVICE(state), &state->mmio);
-    memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_xip_io, state,
-        "xip_mmio", RP2040_XIP_SIZE);
+    // RP2040XipState *state = RP2040_XIP(dev);
+
+    // if (!state->blk) {
+    //     error_setg(errp, "SPI flash not connected to XIP\n");
+    //     return;
+    // }
+
+    // sysbus_init_mmio(SYS_BUS_DEVICE(state), &state->mmio);
+    // memory_region_init_io(&state->mmio, OBJECT(dev), &rp2040_xip_io, state,
+    //     "xip_mmio", RP2040_XIP_SIZE);
+
+    // state->flash_memory = g_malloc0(RP2040_XIP_SIZE);
+    // if (blk_pread(state->blk, 0, RP2040_XIP_SIZE, state->flash_memory, 0) < 0) {
+    //     error_setg(errp, "Failed to read SPI flash content\n");
+    //     return;
+    // }
+
+    // rom_add_blob_fixed("rp2040.spi_flash", state->flash_memory,
+    //     RP2040_XIP_SIZE, 0x10000000);
 }
+
+static Property rp2040_xip_properties[] = {
+    DEFINE_PROP_LINK("ssi", RP2040XipState, ssi, TYPE_SSI_PERIPHERAL, SSIBus *),
+    DEFINE_PROP_END_OF_LIST(),
+};
 
 static void rp2040_xip_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->desc = "RP2040 XIP";
+    device_class_set_props(dc, rp2040_xip_properties);
+
     dc->realize = rp2040_xip_realize;
 }
 

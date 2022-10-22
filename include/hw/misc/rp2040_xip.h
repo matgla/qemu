@@ -37,7 +37,9 @@ struct RP2040XipState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
-    BlockBackend *blk;
+
+    void *flash_memory;
+    SSIBus *ssi;
 };
 
 #endif /* RP2040_XIP_H */

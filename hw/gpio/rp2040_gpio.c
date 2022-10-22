@@ -229,14 +229,11 @@ static void rp2040_gpio_cs_qspi_set(void *opaque, int line, int value)
     } else if (state->qspi_ctrl[1].outover == 0x01) {
         qemu_set_irq(state->qspi_out[1], !!!value);
     }
-
-    // rp2040_set_gpio_state(&state->qspi_status[1], state->qspi_out[1], value);
 }
 
 static void rp2040_gpio_sclk_qspi_set(void *opaque, int line, int value)
 {
-    fprintf(stderr, "Set sclk gpio: %d\n", line);
-    // rp2040_set_gpio_state
+    qemu_log_mask(LOG_UNIMP, "%s: not yet implemented", __func__);
 }
 
 static void rp2040_gpio_realize(DeviceState *dev, Error **errp)

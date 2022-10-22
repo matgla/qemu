@@ -1362,7 +1362,9 @@ static uint64_t io_readx(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
     }
 
     if (!qemu_mutex_iothread_locked()) {
+        fprintf(stderr, "Wisze tu: %lx\n", (uint64_t)addr);
         qemu_mutex_lock_iothread();
+        fprintf(stderr, "Locked tu: %lx\n", (uint64_t)addr);
         locked = true;
     }
     r = memory_region_dispatch_read(mr, mr_offset, &val, op, iotlbentry->attrs);
@@ -1370,11 +1372,13 @@ static uint64_t io_readx(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
         hwaddr physaddr = mr_offset +
             section->offset_within_address_space -
             section->offset_within_region;
+        fprintf(stderr, "Physaddr: %lx\n", (uint64_t)physaddr);
 
         cpu_transaction_failed(cpu, physaddr, addr, memop_size(op), access_type,
                                mmu_idx, iotlbentry->attrs, r, retaddr);
     }
     if (locked) {
+        fprintf(stderr, "Unlock %lx\n", (uint64_t)addr);
         qemu_mutex_unlock_iothread();
     }
 

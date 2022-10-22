@@ -159,7 +159,6 @@ static uint32_t rp2040_resets_get_state(RP2040ResetsState *state)
         resettable_is_in_reset(state->uart0) << RP2040_RESETS_UART0 |
         resettable_is_in_reset(state->uart1) << RP2040_RESETS_UART1 |
         resettable_is_in_reset(state->usbctrl) << RP2040_RESETS_USBCTRL;
-    fprintf(stderr, "Get reset state: %x\n", reset_state);
 
     return reset_state;
 }
@@ -190,7 +189,6 @@ static void rp2040_perform_reset(Object *obj, bool is_reset)
         }
     } else {
         if (resettable_is_in_reset(obj)) {
-            fprintf(stderr, "Unreset\n");
             resettable_release_reset(obj, RESET_TYPE_COLD);
         }
     }
@@ -208,7 +206,6 @@ static void rp2040_resets_write(void *opaque, hwaddr offset,
         case RP2040_RESETS_RESET:
             reset_state = rp2040_resets_get_state(state);
             rp2040_write_to_register(access, &reset_state, value);
-            fprintf(stderr, "Reset state: %x, value: %lx\n", reset_state, value);
 
             rp2040_perform_reset(state->adc,
                 reset_state & RP2040_RESETS_ADC_MASK);
